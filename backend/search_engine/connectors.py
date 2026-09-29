@@ -81,14 +81,22 @@ class MilestoneRest:
 
     def backfill(self, max_pages=1000):
         name = self.site + ':alarms:cursor'
-        cursor = self.engine.checkpoint(name) or '/api/rest/v1/alarms'
+        default_cursor = '/api/rest/v1/alarms'
+        cursor = self.engine.checkpoint(name) or default_cursor
         count = 0
         seen = set()
         for _ in range(max_pages):
             if cursor in seen:
                 raise ValueError('Pagination loop detected')
             seen.add(cursor)
-            result = self.get(cursor)
+            try:
+                result = self.get(cursor)
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code == 404 and cursor != default_cursor:
+                    # a server-returned "next" link can be malformed (e.g. missing the API prefix); a stuck
+                    # checkpoint on it would 404 forever, so drop back to the default and retry next cycle
+                    self.engine.checkpoint(name, default_cursor)
+                raise
             rows = result if isinstance(result, list) else result.get('array', result.get('alarms', []))
             for alarm in rows:
                 self.engine.ingest(self.normalize_alarm(alarm))

@@ -31,6 +31,25 @@ def test_backfill_commit_only_after_successful_page(tmp_path):
     assert e.search('', [('lab', 'camera-1')])['total'] == 1
 
 
+def test_backfill_recovers_from_a_malformed_next_link(tmp_path):
+    """The server can return a "next" pagination link missing the API prefix (seen live: /alarms?page=1&size=100
+    instead of /api/rest/v1/alarms?...), which 404s forever once saved as the checkpoint. A 404 on anything but
+    the default cursor must reset it so the next cycle recovers instead of looping on the same bad link."""
+    cls = connector()
+    calls = []
+    def handler(req):
+        calls.append(str(req.url))
+        if req.url.path == '/api/rest/v1/alarms':
+            return httpx.Response(200, json={'array': [], 'paging': {'next': '/alarms?page=1&size=100'}})
+        return httpx.Response(404)
+    e = Engine(tmp_path / 'c.db')
+    c = cls('https://vms.example', 'token', 'lab', e, transport=httpx.MockTransport(handler))
+    with pytest.raises(httpx.HTTPStatusError):
+        c.backfill()
+    assert e.checkpoint('lab:alarms:cursor') == '/api/rest/v1/alarms'
+    assert len(calls) == 2   # the good first page, then the bad link that gets reset, not retried in-loop
+
+
 def test_connector_refuses_cross_origin_pagination(tmp_path):
     cls = connector()
     e = Engine(tmp_path / 'c.db')
