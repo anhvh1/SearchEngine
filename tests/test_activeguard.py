@@ -69,8 +69,10 @@ class Server:
             return ok({'search_session_id': session})
         if path.startswith('/ai/v1.0/thumbnail/search/'):
             rows = self.sessions[path.rsplit('/', 1)[1]]
-            start, count = int(request.url.params.get('result-from', 0)), int(request.url.params.get('result-count', len(rows)))
-            return ok({'search_session_id': 'x', 'result_count': len(rows), 'search_result': rows[start:start + count]})
+            first, count = int(request.url.params.get('result-from', 1)), int(request.url.params.get('result-count', len(rows)))
+            if first < 1 or count < 1:   # the real server rejects these with C0005
+                return httpx.Response(200, json={'status_body': {'status': False, 'details': [{'code': 'C0005', 'message': f'Validation Error [ResultFrom]=[{first}]'}]}})
+            return ok({'search_session_id': 'x', 'result_count': len(rows), 'search_result': rows[first - 1:first - 1 + count]})
         if path == '/ai/v1.0/thumbnail':
             key = request.url.params['thumbnail-key']
             return ok({'thumbnail_image': JPEG, **self.shots[key]['info']})

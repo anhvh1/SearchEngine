@@ -162,7 +162,7 @@ class ActiveGuard:
         return self.call('POST', '/ai/v1.0/thumbnail/search', json=body)['result_body']['search_session_id']
 
     def results(self, session, start=0, count=200):
-        body = self.call('GET', f'/ai/v1.0/thumbnail/search/{session}', params={'result-from': start, 'result-count': count})
+        body = self.call('GET', f'/ai/v1.0/thumbnail/search/{session}', params={'result-from': start + 1, 'result-count': count})   # the API numbers results from 1
         result = body.get('result_body', {})
         return result.get('result_count', 0), result.get('search_result', [])
 
