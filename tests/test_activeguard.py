@@ -94,7 +94,7 @@ def people_server():
 
 def engine_and_client(tmp_path, server):
     engine = Engine(tmp_path / 'ag.db')
-    settings = activeguard.load_settings(engine, {})
+    settings = {**{k: v for k, v in activeguard.load_settings(engine, {}).items() if k != 'servers'}, 'id': 'ag.local', 'site_id': 'activeguard'}
     ag = activeguard.ActiveGuard('http://ag.local:8090', 'operator', 'secret', transport=httpx.MockTransport(server))
     return engine, ag, settings
 
@@ -138,7 +138,7 @@ def test_sync_is_incremental_idempotent_and_bounded(tmp_path):
     engine, ag, settings = engine_and_client(tmp_path, server)
     first = activeguard.sync(engine, ag, {**settings, 'types': ['people'], 'max_per_cycle': 2})
     assert first == {'people': 2}
-    assert engine.checkpoint('activeguard:cursor:people')          # resumes after the last imported shot
+    assert engine.checkpoint('activeguard:ag.local:cursor:people')          # resumes after the last imported shot
     second = activeguard.sync(engine, ag, {**settings, 'types': ['people'], 'max_per_cycle': 2})
     assert second == {'people': 1}
     assert activeguard.sync(engine, ag, {**settings, 'types': ['people']}) == {'people': 0}
@@ -175,9 +175,9 @@ def test_console_connects_syncs_and_searches_by_face_photo(tmp_path):
     with c:
         assert c.put('/api/settings/activeguard', headers=h, json={'url': 'ftp://x', 'username': 'u', 'password': 'p'}).status_code == 400
         saved = c.put('/api/settings/activeguard', headers=h, json={'url': 'http://ag.local:8090', 'username': 'operator', 'password': 'secret'}).json()
-        assert saved['has_credentials'] and saved['server_version'] == '2.00'
-        assert 'secret' not in json.dumps(c.app.state.engine.checkpoint('activeguard'))          # password is protected at rest
-        assert c.post('/api/activeguard/sync', headers=h).json()['imported']['people'] == 3
+        assert saved['servers'][0]['has_credentials'] and saved['server_version'] == '2.00'
+        assert 'secret' not in json.dumps(c.app.state.engine.checkpoint('activeguard:servers'))          # password is protected at rest
+        assert c.post('/api/activeguard/sync', headers=h).json()['imported']['ag.local']['people'] == 3
         found = c.post('/api/ask', json={'text': 'người nam áo đỏ'}, headers=h).json()
         assert found['total'] == 1 and any(x['label'] == 'Áo đỏ' for x in found['understood'])
         assert c.get(f"/api/records/{found['items'][0]['key']}/image", headers=h).status_code == 200
@@ -185,8 +185,50 @@ def test_console_connects_syncs_and_searches_by_face_photo(tmp_path):
         assert photo['total'] == 1 and photo['understood'][0]['label'] == 'Khuôn mặt giống ảnh'
         assert 'search_thumbnail_1' in server.last_search['section_face'] and server.last_search['sort']['asc-desc'] == 'desc'
         status = c.get('/api/settings/activeguard', headers=h).json()
-        assert status['imported'] >= 3 and status['last_error'] is None
+        assert status['imported'] >= 3 and status['servers'][0]['last_error'] is None
         assert c.get('/api/capabilities', headers=h).json()['activeguard']
+
+
+def test_three_active_guard_servers_feed_one_index(tmp_path):
+    """Milestone can have several Active Guard servers registered; each keeps its own cursor, errors and records."""
+    def face_server(prefix, count, camera):
+        s = Server()
+        s.offered = ['face']
+        s.cameras = [{'camera_id': camera, 'camera_ip': '10.0.0.1', 'camera_model': 'X', 'camera_name': f'Camera {prefix}',
+                      'ai_capability': ['face'], 'is_enabled': 'yes'}]
+        for i in range(count):
+            s.add(f'{prefix}{i}', 'face', camera, i + 1, {'recommended_size': [{'recommended': 'yes'}]})   # same keys may repeat across servers
+        return s
+    servers = {'ag-a.local': face_server('k', 2, 'cam-a'), 'ag-b.local': face_server('k', 3, 'cam-b'), 'ag-down.local': None}
+
+    def router(request):
+        target = servers[request.url.host]
+        if target is None:
+            raise httpx.ConnectError('unreachable')
+        return target(request)
+    from search_engine.api import create_app
+    config = {'database': str(tmp_path / 'multi.db'), 'auto_detect_milestone': False, 'ai': {},
+              'principals': [{'name': 'admin', 'token': 'a' * 32, 'roles': ['admin', 'reader']}]}
+    h = {'Authorization': 'Bearer ' + 'a' * 32}
+    with TestClient(create_app(config, transport=httpx.MockTransport(router))) as c:
+        # the unreachable one cannot be saved: the connection is verified first
+        assert c.put('/api/settings/activeguard', headers=h, json={'url': 'http://ag-down.local:8090', 'username': 'u', 'password': 'p'}).status_code == 400
+        for host in ('ag-a.local', 'ag-b.local'):
+            assert c.put('/api/settings/activeguard', headers=h, json={'url': f'http://{host}:8090', 'username': 'u', 'password': 'p'}).status_code == 200
+        listed = c.get('/api/settings/activeguard', headers=h).json()['servers']
+        assert {s['id'] for s in listed} == {'ag-a.local', 'ag-b.local'} and all(s['site_id'] == 'main' for s in listed)
+        result = c.post('/api/activeguard/sync', headers=h).json()
+        assert result['imported'] == {'ag-a.local': {'face': 2}, 'ag-b.local': {'face': 3}} and not result['errors']
+        assert c.post('/api/search', json={'event_type': 'activeguard:face'}, headers=h).json()['total'] == 5     # equal keys on two servers do not collide
+        # one server goes away: the other keeps working and the failure is shown per server
+        servers['ag-a.local'] = None
+        servers['ag-b.local'].add('k9', 'face', 'cam-b', 0, {'recommended_size': [{'recommended': 'yes'}]})
+        again = c.post('/api/activeguard/sync', headers=h).json()
+        assert again['imported'] == {'ag-b.local': {'face': 1}} and 'ag-a.local' in again['errors']
+        status = {s['id']: s for s in c.get('/api/settings/activeguard', headers=h).json()['servers']}
+        assert status['ag-a.local']['last_error'] and status['ag-b.local']['last_error'] is None and status['ag-b.local']['imported'] == 4
+        assert c.delete('/api/settings/activeguard/ag-a.local', headers=h).status_code == 200
+        assert [s['id'] for s in c.get('/api/settings/activeguard', headers=h).json()['servers']] == ['ag-b.local']
 
 
 def test_server_that_only_offers_face_best_shots(tmp_path):

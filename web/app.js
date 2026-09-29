@@ -240,22 +240,36 @@ async function operations() {
 }
 async function showActiveGuard() {
   const s = await api('/settings/activeguard');
-  $('ag-url').value = s.url || ''; $('ag-user').value = s.username || ''; $('ag-sync').hidden = !s.has_credentials;
-  const when = s.last_sync ? new Date(s.last_sync).toLocaleString('vi-VN') : null;
-  $('ag-status').textContent = !s.has_credentials ? 'Chưa kết nối.'
-    : s.last_error ? `Lỗi lần nhập gần nhất: ${s.last_error}`
-    : `Đã kết nối. Đã nhập ${s.imported.toLocaleString('vi-VN')} ảnh${when ? `, lần cuối ${when}` : ''}.`;
+  $('ag-sync').hidden = !s.servers.some(x => x.has_credentials);
+  $('ag-servers').replaceChildren(...(s.servers.length ? [] : [node('p', 'Chưa kết nối server nào.', 'muted')]));
+  for (const x of s.servers) {
+    const when = x.last_sync ? new Date(x.last_sync).toLocaleString('vi-VN') : null;
+    const box = node('div', undefined, 'rule' + (x.last_error ? ' proposed' : '')), text = node('div');
+    text.append(node('code', `${x.url} · ${x.username || 'chưa có tài khoản'}`),
+      node('p', x.last_error ? `Lỗi lần nhập gần nhất: ${x.last_error}` : `Đã nhập ${x.imported.toLocaleString('vi-VN')} ảnh${when ? `, lần cuối ${when}` : ', chưa nhập lần nào'}`, 'muted'));
+    const edit = node('button', 'Sửa'); edit.type = 'button';
+    edit.onclick = () => { $('ag-url').value = x.url; $('ag-user').value = x.username; $('ag-password').focus(); };
+    const remove = node('button', 'Xóa'); remove.type = 'button';
+    remove.onclick = async () => { if (!confirm(`Ngừng nhập từ ${x.id}? Dữ liệu đã nhập vẫn được giữ.`)) return;
+      try { await api(`/settings/activeguard/${encodeURIComponent(x.id)}`, undefined, 'DELETE'); await showActiveGuard(); } catch (err) { notice(err.message); } };
+    const actions = node('div', undefined, 'actions'); actions.append(edit, remove); box.append(text, actions); $('ag-servers').append(box);
+  }
 }
 $('ag-form').onsubmit = async e => {
   e.preventDefault(); $('ag-status').textContent = 'Đang kiểm tra kết nối…';
   try {
     await api('/settings/activeguard', {url: $('ag-url').value.trim(), username: $('ag-user').value.trim(), password: $('ag-password').value}, 'PUT');
-    $('ag-password').value = ''; await showActiveGuard(); notice('Đã kết nối Active Guard. Dữ liệu sẽ được nhập trong vòng một phút.');
+    $('ag-password').value = ''; $('ag-url').value = ''; $('ag-user').value = ''; $('ag-status').textContent = '';
+    await showActiveGuard(); notice('Đã kết nối. Dữ liệu sẽ được nhập trong vòng một phút.');
   } catch (err) { $('ag-status').textContent = err.message; }
 };
 $('ag-sync').onclick = async () => {
-  try { notice('Đang nhập từ Active Guard…'); const r = await api('/activeguard/sync', {}); notice(`Đã nhập ${Object.values(r.imported).reduce((a, b) => a + b, 0)} ảnh mới.`); await showActiveGuard(); }
-  catch (err) { notice(err.message); }
+  try {
+    notice('Đang nhập từ Active Guard…'); const r = await api('/activeguard/sync', {});
+    const total = Object.values(r.imported).reduce((sum, kinds) => sum + Object.values(kinds).reduce((a, b) => a + b, 0), 0);
+    const failed = Object.entries(r.errors || {}).map(([id, msg]) => `${id}: ${msg}`).join('; ');
+    notice(`Đã nhập ${total} ảnh mới.${failed ? ' Lỗi: ' + failed : ''}`); await showActiveGuard();
+  } catch (err) { notice(err.message); }
 };
 const ROLE = {person: 'người', person_code: 'mã người', plate: 'biển số', place: 'vị trí', action: 'hành động', number: 'số',
   duration_minutes: 'số phút', vehicle: 'phương tiện', color: 'màu', gender: 'giới tính', age: 'tuổi', watchlist: 'watchlist',

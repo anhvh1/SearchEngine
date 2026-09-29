@@ -97,17 +97,15 @@ def create_app(config, transport=None):
         import time
         while True:
             delay = 60
-            try:
-                ag, settings = await asyncio.to_thread(activeguard.connect, engine, config, transport)
+            for ag, settings in await asyncio.to_thread(activeguard.connect_all, engine, config, transport):
                 delay = max(15, int(settings.get('interval_seconds', 60)))
-                if ag is not None:
-                    try:
-                        await asyncio.to_thread(activeguard.sync, engine, ag, settings)
-                    finally:
-                        ag.close()
-            except Exception as exc:
-                logging.exception('Active Guard import failed')
-                engine.checkpoint('activeguard:last_error', str(exc)[:300])
+                try:
+                    await asyncio.to_thread(activeguard.sync, engine, ag, settings)
+                except Exception as exc:       # one unreachable server must not stop the others
+                    logging.exception('Active Guard import failed for %s', settings['id'])
+                    engine.checkpoint(f"activeguard:{settings['id']}:last_error", str(exc)[:300])
+                finally:
+                    ag.close()
             await asyncio.sleep(delay)
 
     async def embedding_worker():
@@ -232,6 +230,10 @@ def create_app(config, transport=None):
         return {**result, 'understood': meaning['chips'], 'ignored_words': dropped,
                 'range': {k: f[k].isoformat() if f[k] else None for k in ('start', 'end')}}
 
+    def activeguard_configured():
+        from . import activeguard
+        return [s for s in activeguard.load_settings(engine, config)['servers'] if s.get('url')]
+
     @app.get('/api/settings/activeguard')
     def activeguard_settings(p=Depends(admin)):
         from . import activeguard
@@ -243,21 +245,31 @@ def create_app(config, transport=None):
         info = activeguard.save_settings(engine, config, data.url, data.username, data.password, data.site_id, p['name'], transport)
         return {**activeguard.describe_settings(engine, config), 'server_version': info.get('multi_ai_soft_version')}
 
+    @app.delete('/api/settings/activeguard/{server}')
+    def remove_activeguard(server: str, p=Depends(admin)):
+        from . import activeguard
+        activeguard.remove_server(engine, server, p['name'])
+        return activeguard.describe_settings(engine, config)
+
     @app.post('/api/activeguard/sync')
     def activeguard_sync(p=Depends(admin)):
         from . import activeguard
-        ag, settings = activeguard.connect(engine, config, transport)
-        if ag is None:
+        servers = activeguard.connect_all(engine, config, transport)
+        if not servers:
             raise HTTPException(400, 'Chưa kết nối Active Guard')
-        try:
-            done = activeguard.sync(engine, ag, settings)
-        except activeguard.ActiveGuardError as exc:
-            engine.checkpoint('activeguard:last_error', str(exc)[:300])
-            raise HTTPException(502, str(exc))
-        finally:
-            ag.close()
+        done, errors = {}, {}
+        for ag, settings in servers:
+            try:
+                done[settings['id']] = activeguard.sync(engine, ag, settings)
+            except activeguard.ActiveGuardError as exc:
+                errors[settings['id']] = str(exc)
+                engine.checkpoint(f"activeguard:{settings['id']}:last_error", str(exc)[:300])
+            finally:
+                ag.close()
         engine.process_pending(500)
-        return {'imported': done}
+        if errors and not done:
+            raise HTTPException(502, '; '.join(f'{k}: {v}' for k, v in errors.items()))
+        return {'imported': done, 'errors': errors}
 
     @app.post('/api/ask/image')
     async def ask_image(file: UploadFile = File(...), tz_offset_minutes: int = 420, p=Depends(reader)):
@@ -268,14 +280,14 @@ def create_app(config, transport=None):
         if len(content) > 8 * 1024 * 1024:
             raise HTTPException(413, 'Ảnh vượt quá 8 MiB')
         matches, text, problems = [], None, []
-        ag, settings = await asyncio.to_thread(activeguard.connect, engine, config, transport)
-        if ag is not None:
+        for ag, settings in await asyncio.to_thread(activeguard.connect_all, engine, config, transport):
             try:
-                matches = await asyncio.to_thread(activeguard.face_photo_search, engine, ag, settings, content)
+                matches += await asyncio.to_thread(activeguard.face_photo_search, engine, ag, settings, content)
             except activeguard.ActiveGuardError as exc:
-                problems.append(str(exc))
+                problems.append(f"{settings['id']}: {exc}")
             finally:
                 ag.close()
+        matches.sort(key=lambda kv: -kv[1])
         if not matches and config.get('ai', {}).get('vision_model'):
             try:
                 text = await asyncio.to_thread(describe_image, content, config.get('ai', {}))
@@ -417,7 +429,7 @@ def create_app(config, transport=None):
     def capabilities(p=Depends(principal)):
         ai = config.get('ai', {})
         return {'chat': bool(ai.get('chat_model')), 'embedding': bool(ai.get('embedding_model')), 'vision': bool(ai.get('vision_model')),
-                'activeguard': bool(engine.checkpoint('activeguard') or config.get('activeguard')),
+                'activeguard': bool(activeguard_configured()),
                 'voice': bool(ai.get('whisper_model')), 'video_playback': False,
                 'identity': p.get('identity', 'token')}
 

@@ -173,42 +173,75 @@ class ActiveGuard:
         return self.call('GET', '/ai/v1.0/thumbnail', params=params).get('result_body', {})
 
 
-# ---------------- settings ----------------
+# ---------------- settings: any number of Active Guard servers ----------------
+SERVERS = 'activeguard:servers'
+
+
+def server_id(url):
+    from urllib.parse import urlparse
+    parsed = urlparse(url)
+    return (parsed.hostname or url) + (f':{parsed.port}' if parsed.port and parsed.port != 8090 else '')
+
+
+def stored_servers(engine):
+    saved = engine.checkpoint(SERVERS)
+    if saved:
+        return json.loads(saved)
+    legacy = engine.checkpoint(CHECKPOINT)          # single-server settings of earlier versions
+    if legacy:
+        old = json.loads(legacy)
+        return [{**old, 'id': server_id(old['url'])}]
+    return []
+
+
 def load_settings(engine, config):
-    saved = engine.checkpoint(CHECKPOINT)
-    merged = {**(config.get('activeguard') or {}), **(json.loads(saved) if saved else {})}
-    merged.setdefault('site_id', 'activeguard')   # its cameras belong to the VMS Active Guard is registered to, which may not be ours
-    merged.setdefault('min_score', 0.5)
-    merged.setdefault('lookback_hours', 24)
-    merged.setdefault('max_per_cycle', 300)
-    merged.setdefault('interval_seconds', 60)
-    merged.setdefault('types', ['face', 'people', 'vehicle', 'lpr'])   # only those the server and cameras actually offer are read
-    merged.setdefault('verify_certificates', False)
-    return merged
+    """Shared options plus 'servers': every configured Active Guard server with its own site and credentials."""
+    base = {k: v for k, v in (config.get('activeguard') or {}).items() if k not in ('servers', 'url', 'username', 'password_env')}
+    base.setdefault('min_score', 0.5)
+    base.setdefault('lookback_hours', 24)
+    base.setdefault('max_per_cycle', 300)
+    base.setdefault('interval_seconds', 60)
+    base.setdefault('types', ['face', 'people', 'vehicle', 'lpr'])   # only those a server and its cameras actually offer are read
+    base.setdefault('verify_certificates', False)
+    configured = list((config.get('activeguard') or {}).get('servers', []))
+    if (config.get('activeguard') or {}).get('url'):
+        configured.append({k: config['activeguard'].get(k) for k in ('url', 'username', 'password_env', 'site_id') if config['activeguard'].get(k)})
+    servers = {}
+    for row in configured + stored_servers(engine):
+        row = {**row, 'id': row.get('id') or server_id(row['url'])}
+        row.setdefault('site_id', 'main')     # Active Guard is registered to the Milestone this system reads
+        servers[row['id']] = row
+    return {**base, 'servers': list(servers.values())}
 
 
-def credentials(settings):
-    if settings.get('username') and settings.get('password_protected'):
-        return settings['username'], unprotect(settings['password_protected'])
+def credentials(server):
+    if server.get('username') and server.get('password_protected'):
+        return server['username'], unprotect(server['password_protected'])
     import os
-    user, password = settings.get('username'), os.environ.get(settings.get('password_env', ''))
+    user, password = server.get('username'), os.environ.get(server.get('password_env', ''))
     return (user, password) if user and password else (None, None)
 
 
-def connect(engine, config, transport=None):
-    settings = load_settings(engine, config)
-    user, password = credentials(settings)
-    if not settings.get('url') or not user:
-        return None, settings
-    return ActiveGuard(settings['url'], user, password, transport, settings['verify_certificates']), settings
+def connect_all(engine, config, transport=None):
+    """[(client, settings)] for every server that has credentials; settings = shared options + that server's fields."""
+    shared = load_settings(engine, config)
+    out = []
+    for server in shared['servers']:
+        user, password = credentials(server)
+        if server.get('url') and user:
+            out.append((ActiveGuard(server['url'], user, password, transport, shared['verify_certificates']),
+                        {**{k: v for k, v in shared.items() if k != 'servers'}, **server}))
+    return out
 
 
 def save_settings(engine, config, url, username, password, site_id, actor, transport=None):
+    """Add or update one server (identified by its address); returns its system info."""
     if not url.startswith(('http://', 'https://')):
         raise ValueError('Địa chỉ Active Guard phải bắt đầu bằng http:// hoặc https://')
-    previous = engine.checkpoint(CHECKPOINT)
-    previous = json.loads(previous) if previous else {}
-    value = {'url': url.rstrip('/'), 'username': username or previous.get('username', ''), 'site_id': site_id or 'main'}
+    sid = server_id(url.rstrip('/'))
+    rows = stored_servers(engine)
+    previous = next((r for r in rows if r['id'] == sid), {})
+    value = {'id': sid, 'url': url.rstrip('/'), 'username': username or previous.get('username', ''), 'site_id': site_id or previous.get('site_id') or 'main'}
     if password:
         value['password_protected'] = protect(password)
     elif previous.get('password_protected') and value['username'] == previous.get('username'):
@@ -223,18 +256,33 @@ def save_settings(engine, config, url, username, password, site_id, actor, trans
         raise ValueError(str(exc))
     finally:
         client.close()
-    engine.checkpoint(CHECKPOINT, json.dumps(value))
+    engine.checkpoint(SERVERS, json.dumps([r for r in rows if r['id'] != sid] + [value]))
     with engine.lock, engine.db:
         engine.audit(actor, 'activeguard.connection', {'url': value['url'], 'username': value['username']})
     return info
 
 
+def remove_server(engine, sid, actor):
+    rows = stored_servers(engine)
+    if not any(r['id'] == sid for r in rows):
+        raise ValueError('Không có server này trong danh sách')
+    engine.checkpoint(SERVERS, json.dumps([r for r in rows if r['id'] != sid]))
+    if engine.checkpoint(CHECKPOINT):
+        engine.checkpoint(CHECKPOINT, '')
+    with engine.lock, engine.db:
+        engine.audit(actor, 'activeguard.removed', {'id': sid})
+
+
 def describe_settings(engine, config):
-    s = load_settings(engine, config)
-    user, _ = credentials(s) if s.get('url') else (None, None)
-    return {'url': s.get('url'), 'username': user or '', 'site_id': s['site_id'], 'has_credentials': bool(user),
-            'types': s['types'], 'last_sync': engine.checkpoint('activeguard:last_sync'), 'last_error': engine.checkpoint('activeguard:last_error') or None,
-            'imported': int(engine.checkpoint('activeguard:imported') or 0)}
+    shared = load_settings(engine, config)
+    rows = []
+    for server in shared['servers']:
+        user, _ = credentials(server)
+        sid = server['id']
+        rows.append({'id': sid, 'url': server.get('url'), 'username': user or '', 'site_id': server['site_id'], 'has_credentials': bool(user),
+                     'last_sync': engine.checkpoint(f'activeguard:{sid}:last_sync'), 'last_error': engine.checkpoint(f'activeguard:{sid}:last_error') or None,
+                     'imported': int(engine.checkpoint(f'activeguard:{sid}:imported') or 0)})
+    return {'servers': rows, 'types': shared['types'], 'imported': sum(r['imported'] for r in rows)}
 
 
 # ---------------- import ----------------
@@ -254,12 +302,12 @@ def envelope(kind, hit, info, camera, settings):
     when = to_utc_iso(hit['shot_date_time'])
     name = camera['name'] if camera else str(hit.get('camera_id'))
     payload = {'header': {'ID': key, 'Name': TITLES[kind], 'Message': text, 'Type': f'activeguard:{kind}', 'Source': {'Name': name}},
-               'activeguard': {'type': kind, 'thumbnail_key': key, 'attributes': attrs,
+               'activeguard': {'type': kind, 'server': settings['id'], 'thumbnail_key': key, 'attributes': attrs,
                                'similarity': hit.get('degree_of_similarity')},
                'scores': {k: v for k, v in info.items() if k in PEOPLE_GROUPS or k in ('vehicle_type', 'vehicle_color')}}
     if info.get('thumbnail_image'):
         payload['Snapshot'] = {'Image': info['thumbnail_image']}
-    return {'site_id': settings['site_id'], 'kind': 'event', 'source_guid': f'ag-{key}', 'source_id': str(hit.get('camera_id') or 'unknown'),
+    return {'site_id': settings['site_id'], 'kind': 'event', 'source_guid': f"ag-{settings['id']}-{key}", 'source_id': str(hit.get('camera_id') or 'unknown'),
             'event_type': f'activeguard:{kind}', 'occurred_at': when, 'updated_at': when, 'message': text, 'description': text,
             'camera_id': str(hit.get('camera_id') or '') or None, 'payload': payload}
 
@@ -267,7 +315,7 @@ def envelope(kind, hit, info, camera, settings):
 def import_hit(engine, ag, kind, hit, cameras, settings):
     """Fetch one best shot with its attribute scores and ingest it; returns the record key."""
     from .store import record_key
-    key = record_key(settings['site_id'], 'event', f"ag-{hit['thumbnail_key']}")
+    key = record_key(settings['site_id'], 'event', f"ag-{settings['id']}-{hit['thumbnail_key']}")
     if engine.has_key(key):
         return key, False
     info = ag.thumbnail(hit['thumbnail_key'], info=True)
@@ -287,7 +335,7 @@ def sync(engine, ag, settings, now=None):
         eligible = [c for c in cameras.values() if kind in c['capability']]
         if not eligible or budget <= 0:
             continue
-        cursor = engine.checkpoint(f'activeguard:cursor:{kind}')
+        cursor = engine.checkpoint(f"activeguard:{settings['id']}:cursor:{kind}")
         start = (datetime.fromisoformat(cursor) - timedelta(minutes=2)) if cursor else now - timedelta(hours=float(settings['lookback_hours']))
         session = ag.search(kind, {'cameras': [{'srv_id': SRV, 'camera_id': c['camera_id']} for c in eligible]}, start, now)
         offset, count, last = 0, 0, None
@@ -304,13 +352,14 @@ def sync(engine, ag, settings, now=None):
             if offset >= total:
                 break
         finished = budget > 0  # ran out of results, not of budget
-        engine.checkpoint(f'activeguard:cursor:{kind}', (datetime.fromisoformat(to_utc_iso(last).replace('Z', '+00:00')) if last and not finished else now).isoformat())
+        engine.checkpoint(f"activeguard:{settings['id']}:cursor:{kind}", (datetime.fromisoformat(to_utc_iso(last).replace('Z', '+00:00')) if last and not finished else now).isoformat())
         done[kind] = count
-    engine.checkpoint('activeguard:last_sync', now.isoformat())
+    sid = settings['id']
+    engine.checkpoint(f'activeguard:{sid}:last_sync', now.isoformat())
     total = sum(done.values())
     if total:
-        engine.checkpoint('activeguard:imported', str(int(engine.checkpoint('activeguard:imported') or 0) + total))
-    engine.checkpoint('activeguard:last_error', '')
+        engine.checkpoint(f'activeguard:{sid}:imported', str(int(engine.checkpoint(f'activeguard:{sid}:imported') or 0) + total))
+    engine.checkpoint(f'activeguard:{sid}:last_error', '')
     return done
 
 
