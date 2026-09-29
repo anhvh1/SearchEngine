@@ -28,3 +28,4 @@ docs/*.docx
 # Reference projects from another product, not part of this deliverable
 docs/PsimEvent/
 docs/PsimManagement/
+iag-probe*.json

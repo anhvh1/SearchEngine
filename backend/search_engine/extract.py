@@ -16,9 +16,14 @@ BASE64 = re.compile(r'^[A-Za-z0-9+/=\s]{120,}$')
 SKIP_KEYS = {'fqid', 'serverid', 'objectid', 'parentid', 'kind', 'foldertype', 'id', 'image', 'mask', 'snapshotlist',
              'snapshot', 'boundingbox', 'polygon', 'polygonlist', 'path', 'timeoffset', 'hostname', 'port', 'scheme',
              'version', 'messageid', 'timestamp', 'starttime', 'endtime', 'priority', 'priorityname', 'haslayout',
-             'hasoverlay', 'width', 'height', 'sizeinbytes', 'extensiondata', 'removed', 'alarmtrigger', 'count', 'state'}
+             'hasoverlay', 'width', 'height', 'sizeinbytes', 'extensiondata', 'removed', 'alarmtrigger', 'count', 'state',
+             'scores', 'thumbnailkey', 'similarity'}   # raw model scores stay in the payload for review, not in the index
 # Key name fragments (folded, no separators) that reveal what a value is.
 KEY_ROLES = [
+    (r'^(upper|lower|hair|bag|shoes|vehicle)colou?r$', None),      # resolved below to "<part>_color"
+    (r'^uppergarment$', 'upper_garment'), (r'^lowergarment$', 'lower_garment'), (r'^hairstyle$', 'hair_style'),
+    (r'^(sunglasses|facemask|beard|bag)$', None), (r'^vehicletype$', 'vehicle_type'), (r'^licenseplate$', 'plate'),
+    (r'^(brand|model|countrycode|daynight|direction)$', None),
     (r'licen[cs]eplate|plate|bienso|lpr', 'plate'),
     (r'watchlist', 'watchlist'),
     (r'person|people|fullname|employee|staff|visitor|nhanvien|hoten', 'person'),
@@ -169,7 +174,12 @@ def classify(attrs, data, event_name):
     ctx = event_context(data, event_name)
     for a in attrs:
         key, value = _compact(a['key']), a['value']
-        role = next((r for pattern, r in KEY_ROLES if re.search(pattern, key)), None)
+        role = None
+        if re.match(r'^(upper|lower|hair|bag|shoes|vehicle)colou?r$|^(sunglasses|facemask|beard|bag|brand|model|countrycode|daynight|direction)$', key):
+            # Attributes with an exact meaning (Active Guard and similar): keep the part they describe.
+            role = {'facemask': 'face_mask', 'countrycode': 'country', 'daynight': 'day_night'}.get(key) or re.sub(r'colou?r$', '_color', key)
+        if role is None:
+            role = next((r for pattern, r in KEY_ROLES if r and re.search(pattern, key)), None)
         if isinstance(value, str):
             if role is None and PLATE.match(value.replace(' ', '')):
                 role = 'plate'

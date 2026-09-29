@@ -49,7 +49,9 @@ def seed(engine):
 
 def main():
     parser = argparse.ArgumentParser(description='Milestone event search service')
-    parser.add_argument('command', choices=['init', 'serve', 'seed', 'import', 'backfill', 'discover', 'openapi'])
+    parser.add_argument('command', choices=['init', 'serve', 'seed', 'import', 'backfill', 'discover', 'openapi', 'iag-probe'])
+    parser.add_argument('--user', default='')
+    parser.add_argument('--hours', type=int, default=6)
     parser.add_argument('--config', default='config.local.json')
     parser.add_argument('--file')
     parser.add_argument('--site', default='lab')
@@ -57,6 +59,18 @@ def main():
     args = parser.parse_args()
     if args.command == 'init':
         initialize(args.config)
+        return
+    if args.command == 'iag-probe':
+        # Read-only diagnostic run by the operator: the password never leaves this process and is not stored.
+        import getpass
+        from .activeguard import probe
+        if not args.url or not args.user:
+            parser.error('--url and --user are required')
+        password = os.environ.get('IAG_PASSWORD') or getpass.getpass(f'Mật khẩu Active Guard của {args.user}: ')
+        out = args.file or 'iag-probe.json'
+        report = probe(args.url, args.user, password, out, hours=args.hours)
+        print(f"Đã ghi {out}: {len(report.get('cameras', []))} camera; " +
+              ', '.join(f"{k}: {v.get('total_in_window', v) if isinstance(v, dict) else v}" for k, v in report.get('samples', {}).items()))
         return
     config = json.loads(Path(args.config).read_text(encoding='utf8'))
     if args.command in ('serve', 'openapi'):

@@ -28,7 +28,7 @@ LOG_DIR = DATA_DIR / 'logs'
 COLLECTOR_TOKEN = DATA_DIR.parent / 'collector.token'
 FIREWALL_RULE = 'Milestone Search Backend'
 ADMIN_COMMANDS = ('install', 'uninstall', 'start', 'stop', 'restart')
-CLI_COMMANDS = ('init', 'seed', 'import', 'backfill', 'discover', 'openapi')
+CLI_COMMANDS = ('init', 'seed', 'import', 'backfill', 'discover', 'openapi', 'iag-probe')
 
 
 def parse(argv):
@@ -383,7 +383,21 @@ def run(args):
             win32service.CloseServiceHandle(scm)
 
 
+def utf8_console():
+    """Vietnamese messages must print on any console code page instead of crashing."""
+    try:
+        ctypes.windll.kernel32.SetConsoleOutputCP(65001)
+    except Exception:
+        pass
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding='utf-8', errors='replace')
+        except Exception:
+            pass
+
+
 def main(argv=None):
+    utf8_console()
     argv = sys.argv[1:] if argv is None else argv
     args = parse(argv)
     if args.command in ADMIN_COMMANDS and not is_admin():

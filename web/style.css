@@ -55,6 +55,7 @@ main{max-width:920px;margin:0 auto;padding:40px 16px 80px}
 .result-title{font-weight:600}.result-source{color:var(--muted);font-size:13px;margin-top:2px}
 .pill{background:var(--amber);color:#fff;border-radius:4px;font-size:10px;padding:2px 6px;margin-right:8px;vertical-align:1px}
 #more{display:block;margin:16px auto 0}
+.result-desc{font-size:13px;margin-top:2px}
 .thumb{width:56px;height:56px;border-radius:8px;object-fit:cover;background:#e8eef3;flex:none}
 .result-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}.tag{font-size:11px;background:#eef3f7;border-radius:10px;padding:1px 8px;color:var(--ink)}
 .tag-person{background:#e3eef7;color:#0f4f7e;font-weight:600}.tag-count{background:#fff4e5;color:var(--amber)}

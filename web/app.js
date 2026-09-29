@@ -34,7 +34,7 @@ async function enter() {
   document.querySelectorAll('.admin-only').forEach(n => n.hidden = !me.roles.includes('admin'));
   $('login').hidden = true; $('shell').hidden = false; $('login-error').textContent = '';
   caps = await api('/capabilities').catch(() => ({}));
-  setupMic(); $('photo').hidden = !caps.vision;
+  setupMic(); $('photo').hidden = !(caps.vision || caps.activeguard);
   await refreshStatus();
   $('ask-input').focus();
 }
@@ -89,7 +89,9 @@ async function ask(text, more = false) {
     render(data, more);
   } catch (err) { $('summary').textContent = err.message; }
 }
+let similarity = {};
 function render(data, more) {
+  similarity = data.similarity || {};
   if (!more) {
     const parts = [`Tìm thấy ${data.total.toLocaleString('vi-VN')} lần xuất hiện`];
     const people = data.facets?.people?.slice(0, 3).map(f => `${f.name} (${f.count})`);
@@ -119,7 +121,11 @@ function row(item) {
   if (item.facts?.identity_status === 'unknown') tags.append(node('span', 'Người lạ', 'tag'));
   for (const a of item.facts?.action || []) tags.append(node('span', a, 'tag'));
   if (item.episode?.count > 1) tags.append(node('span', `×${item.episode.count}` + ((new Date(item.episode.last) - new Date(item.episode.first)) >= 5000 ? ` trong ${span(item.episode)}` : ''), 'tag tag-count'));
-  body.append(title, node('div', item.source_name || item.source_id, 'result-source'), tags);
+  body.append(title);
+  // Active Guard best shots carry no message of their own: show the attributes (gender, clothes ...) they were read as.
+  if ((item.event_type || '').startsWith('activeguard:') && item.description) body.append(node('div', item.description, 'result-desc'));
+  if (similarity[item.key]) tags.prepend(node('span', `Giống ${Math.round(similarity[item.key])}%`, 'tag tag-person'));
+  body.append(node('div', item.source_name || item.source_id, 'result-source'), tags);
   b.append(t);
   if (item.has_image || item.episode?.image) b.append(thumb(item.key, 'thumb'));
   b.append(body);
@@ -141,6 +147,7 @@ function detail(item) {
   for (const [label, value] of [['Thời điểm', when(item.occurred_at)], ['Camera / thiết bị', item.source_name || item.source_id], ['Tên trong Milestone', item.event_name], ['Nội dung', item.message !== item.event_name ? item.message : ''],
     ['Người', (item.facts?.persons || []).join(', ')], ['Hành động', (item.facts?.action || []).join(', ')],
     ['Nhận diện', item.facts?.identity_status === 'unknown' ? 'Người lạ' : item.facts?.identity_status === 'known' ? 'Người đã đăng ký' : ''],
+    ['Đặc điểm', (item.event_type || '').startsWith('activeguard:') ? item.description : ''],
     ['Số lần lặp', item.episode?.count > 1 ? `${item.episode.count} lần, ${when(item.episode.first)} → ${when(item.episode.last)}` : ''],
     ['Mức ưu tiên', item.priority], ['Trạng thái', item.state], ['Địa điểm', item.location], ['Mô tả', item.description]]) {
     if (value) dl.append(node('dt', label), node('dd', value));
@@ -229,8 +236,27 @@ async function operations() {
   $('conn-site').onchange = fill; fill();
   $('operations-output').textContent = JSON.stringify(ops, null, 2);
   $('rules-suggest').hidden = !caps.chat;
-  await showRules();
+  await Promise.all([showRules(), showActiveGuard()]);
 }
+async function showActiveGuard() {
+  const s = await api('/settings/activeguard');
+  $('ag-url').value = s.url || ''; $('ag-user').value = s.username || ''; $('ag-sync').hidden = !s.has_credentials;
+  const when = s.last_sync ? new Date(s.last_sync).toLocaleString('vi-VN') : null;
+  $('ag-status').textContent = !s.has_credentials ? 'Chưa kết nối.'
+    : s.last_error ? `Lỗi lần nhập gần nhất: ${s.last_error}`
+    : `Đã kết nối. Đã nhập ${s.imported.toLocaleString('vi-VN')} ảnh${when ? `, lần cuối ${when}` : ''}.`;
+}
+$('ag-form').onsubmit = async e => {
+  e.preventDefault(); $('ag-status').textContent = 'Đang kiểm tra kết nối…';
+  try {
+    await api('/settings/activeguard', {url: $('ag-url').value.trim(), username: $('ag-user').value.trim(), password: $('ag-password').value}, 'PUT');
+    $('ag-password').value = ''; await showActiveGuard(); notice('Đã kết nối Active Guard. Dữ liệu sẽ được nhập trong vòng một phút.');
+  } catch (err) { $('ag-status').textContent = err.message; }
+};
+$('ag-sync').onclick = async () => {
+  try { notice('Đang nhập từ Active Guard…'); const r = await api('/activeguard/sync', {}); notice(`Đã nhập ${Object.values(r.imported).reduce((a, b) => a + b, 0)} ảnh mới.`); await showActiveGuard(); }
+  catch (err) { notice(err.message); }
+};
 const ROLE = {person: 'người', person_code: 'mã người', plate: 'biển số', place: 'vị trí', action: 'hành động', number: 'số',
   duration_minutes: 'số phút', vehicle: 'phương tiện', color: 'màu', gender: 'giới tính', age: 'tuổi', watchlist: 'watchlist',
   code: 'mã', container: 'container', card: 'thẻ', door: 'cửa', value: 'giá trị'};

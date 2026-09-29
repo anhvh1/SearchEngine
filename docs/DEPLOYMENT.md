@@ -89,3 +89,18 @@ Backup database backend bằng công cụ PostgreSQL, lưu file cấu hình riê
 - Khuôn câu của các tích hợp (FaceMe, chấm công, biển số, thẻ) được tự học mỗi 10 phút; xem, tắt hoặc duyệt trong **⚙ Trạng thái hệ thống → Hệ thống đã tự hiểu các loại sự kiện**.
 - Tùy chọn AI trong `ai`: `chat_model` bật nút "Nhờ AI đề xuất" (đề xuất phải được duyệt); `vision_model` (model thị giác của Ollama) bật nút tìm theo ảnh. Ảnh tải lên chỉ dùng để mô tả, không lưu.
 - Kiểm tra trên dữ liệu thật: restore backup Milestone vào SQL Server phân tích (`research/milestone/restore-backup.ps1`) rồi chạy `python research/milestone/replay_backup.py --db <file tạm>.db`.
+
+## Active Guard: tìm theo đặc điểm người, xe, biển số và ảnh khuôn mặt
+
+Active Guard chỉ gửi sang Milestone những lần khớp watchlist. Toàn bộ best shot cùng thuộc tính (giới tính, tuổi, tóc, màu áo/quần/giày, mũ, kính, khẩu trang, râu, túi, loại và màu xe, biển số) nằm trong Active Guard server và đọc được qua **WebAPI v1.1** (HTTP Digest, cổng 8090; tài liệu: https://i-pro.com/products_and_solutions/en/activeguardapi/English/index.html).
+
+1. Trên máy chủ Active Guard nên tạo một tài khoản chỉ dùng cho việc đọc (API này chỉ đọc dữ liệu tìm kiếm mà connector dùng).
+2. Mở giao diện tìm kiếm, biểu tượng ⚙ → **Active Guard** → nhập địa chỉ (ví dụ `http://192.168.100.11:8090`), tài khoản, mật khẩu → **Kiểm tra và lưu**. Mật khẩu được mã hóa DPAPI, không nằm trong cấu hình chia sẻ.
+3. Backend tự nhập best shot mới mỗi phút (mặc định nhập lại 24 giờ gần nhất, tối đa 300 ảnh mỗi lượt). Chỉnh trong `config.json` mục `activeguard`: `types` (`people`, `vehicle`, `lpr`, `face`), `lookback_hours`, `max_per_cycle`, `interval_seconds`, `min_score` (ngưỡng tin cậy của thuộc tính, mặc định 0.5).
+4. Tìm kiếm ví dụ: "nam áo đỏ quần đen đội mũ", "phụ nữ đeo khẩu trang", "người cao tuổi tóc trắng", "xe tải màu trắng", "xe máy đỏ". Biểu tượng máy ảnh: tải ảnh khuôn mặt lên, Active Guard tự tìm các khuôn mặt giống (7 ngày gần nhất, ngưỡng giống 70%). Với ảnh toàn thân cần thêm `ai.vision_model`.
+
+**Chẩn đoán trước khi dùng thật:** chạy lệnh dưới một lần. Lệnh chỉ đọc, hỏi mật khẩu ngay trên màn hình (hoặc biến môi trường `IAG_PASSWORD`), không lưu mật khẩu, và ghi ra một file JSON gồm danh sách camera, điểm thuộc tính của vài ảnh mẫu (không có ảnh) để đối chiếu với dữ liệu thật:
+
+    MilestoneSearch.Backend.exe iag-probe --url http://192.168.100.11:8090 --user <tài khoản> --file iag-probe.json
+
+Dữ liệu tìm khuôn mặt theo ảnh gửi ảnh lên chính Active Guard server; backend không lưu ảnh tải lên.

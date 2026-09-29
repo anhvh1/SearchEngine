@@ -24,6 +24,13 @@ class SignIn(BaseModel):
     token: str = Field(default='', max_length=16384)
 
 
+class ActiveGuardConnection(BaseModel):
+    url: str = Field(min_length=1, max_length=512)
+    username: str = Field(default='', max_length=256)
+    password: str = Field(default='', max_length=1024)
+    site_id: str = Field(default='main', max_length=128)
+
+
 class RuleStatus(BaseModel):
     site_id: str = Field(max_length=128)
     event_type: str = Field(max_length=256)
@@ -85,6 +92,24 @@ def create_app(config, transport=None):
                 logging.exception('Reconciliation worker failed')
             await asyncio.sleep(10)
 
+    async def activeguard_worker():
+        from . import activeguard
+        import time
+        while True:
+            delay = 60
+            try:
+                ag, settings = await asyncio.to_thread(activeguard.connect, engine, config, transport)
+                delay = max(15, int(settings.get('interval_seconds', 60)))
+                if ag is not None:
+                    try:
+                        await asyncio.to_thread(activeguard.sync, engine, ag, settings)
+                    finally:
+                        ag.close()
+            except Exception as exc:
+                logging.exception('Active Guard import failed')
+                engine.checkpoint('activeguard:last_error', str(exc)[:300])
+            await asyncio.sleep(delay)
+
     async def embedding_worker():
         from .ai import index_pending
         while True:
@@ -100,8 +125,9 @@ def create_app(config, transport=None):
         task = asyncio.create_task(worker())
         reconcile_task = asyncio.create_task(reconciliation_worker())
         embedding_task = asyncio.create_task(embedding_worker())
+        guard_task = asyncio.create_task(activeguard_worker())
         yield
-        for job in (task, reconcile_task, embedding_task):
+        for job in (task, reconcile_task, embedding_task, guard_task):
             job.cancel()
             try:
                 await job
@@ -206,14 +232,65 @@ def create_app(config, transport=None):
         return {**result, 'understood': meaning['chips'], 'ignored_words': dropped,
                 'range': {k: f[k].isoformat() if f[k] else None for k in ('start', 'end')}}
 
+    @app.get('/api/settings/activeguard')
+    def activeguard_settings(p=Depends(admin)):
+        from . import activeguard
+        return activeguard.describe_settings(engine, config)
+
+    @app.put('/api/settings/activeguard')
+    def save_activeguard(data: ActiveGuardConnection, p=Depends(admin)):
+        from . import activeguard
+        info = activeguard.save_settings(engine, config, data.url, data.username, data.password, data.site_id, p['name'], transport)
+        return {**activeguard.describe_settings(engine, config), 'server_version': info.get('multi_ai_soft_version')}
+
+    @app.post('/api/activeguard/sync')
+    def activeguard_sync(p=Depends(admin)):
+        from . import activeguard
+        ag, settings = activeguard.connect(engine, config, transport)
+        if ag is None:
+            raise HTTPException(400, 'Chưa kết nối Active Guard')
+        try:
+            done = activeguard.sync(engine, ag, settings)
+        except activeguard.ActiveGuardError as exc:
+            engine.checkpoint('activeguard:last_error', str(exc)[:300])
+            raise HTTPException(502, str(exc))
+        finally:
+            ag.close()
+        engine.process_pending(500)
+        return {'imported': done}
+
     @app.post('/api/ask/image')
     async def ask_image(file: UploadFile = File(...), tz_offset_minutes: int = 420, p=Depends(reader)):
+        """Photo search: faces are matched by Active Guard itself; a full-body photo is described by the vision model."""
+        from . import activeguard
         from .ai import describe_image
         content = await file.read(8 * 1024 * 1024 + 1)
         if len(content) > 8 * 1024 * 1024:
             raise HTTPException(413, 'Ảnh vượt quá 8 MiB')
-        text = await asyncio.to_thread(describe_image, content, config.get('ai', {}))
-        return {**ask(AskRequest(text=text, tz_offset_minutes=tz_offset_minutes), p), 'described': text}
+        matches, text, problems = [], None, []
+        ag, settings = await asyncio.to_thread(activeguard.connect, engine, config, transport)
+        if ag is not None:
+            try:
+                matches = await asyncio.to_thread(activeguard.face_photo_search, engine, ag, settings, content)
+            except activeguard.ActiveGuardError as exc:
+                problems.append(str(exc))
+            finally:
+                ag.close()
+        if not matches and config.get('ai', {}).get('vision_model'):
+            try:
+                text = await asyncio.to_thread(describe_image, content, config.get('ai', {}))
+            except HTTPException as exc:
+                problems.append(str(exc.detail))
+        if matches:
+            await asyncio.to_thread(engine.process_pending, 500)
+            items = engine.records_by_keys([key for key, _ in matches])
+            allowed_items = [i for i in items if allowed(i, p.get('grants', []))]
+            return {'total': len(allowed_items), 'items': allowed_items, 'limit': len(allowed_items), 'offset': 0,
+                    'understood': [{'type': 'photo', 'label': 'Khuôn mặt giống ảnh'}], 'ignored_words': None, 'described': None,
+                    'similarity': {key: score for key, score in matches}}
+        if text:
+            return {**ask(AskRequest(text=text, tz_offset_minutes=tz_offset_minutes), p), 'described': text}
+        raise HTTPException(503, problems[0] if problems else 'Chưa kết nối Active Guard hoặc cài model thị giác để tìm theo ảnh')
 
     @app.get('/api/records/{key}/image')
     def record_image(key: str, p=Depends(reader)):
@@ -340,6 +417,7 @@ def create_app(config, transport=None):
     def capabilities(p=Depends(principal)):
         ai = config.get('ai', {})
         return {'chat': bool(ai.get('chat_model')), 'embedding': bool(ai.get('embedding_model')), 'vision': bool(ai.get('vision_model')),
+                'activeguard': bool(engine.checkpoint('activeguard') or config.get('activeguard')),
                 'voice': bool(ai.get('whisper_model')), 'video_playback': False,
                 'identity': p.get('identity', 'token')}
 

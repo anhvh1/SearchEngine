@@ -31,6 +31,10 @@ def display_names(data):
     return str(event_name)[:256], str(source_name)[:512]
 
 
+def record_key(site_id, kind, source_guid):
+    return hashlib.sha256(dumps([site_id, kind, source_guid]).encode()).hexdigest()
+
+
 def type_key(data):
     """Integrations often share one Milestone event id and tell kinds apart by header Type (Checkin, FACEME.PERSON...)."""
     payload = data.get('payload') or {}
@@ -199,7 +203,7 @@ class Engine:
         body = dumps(data)
         if len(body.encode()) > 1024 * 1024:
             raise ValueError('Envelope exceeds 1 MiB')
-        key = hashlib.sha256(dumps([data['site_id'], data['kind'], data['source_guid']]).encode()).hexdigest()
+        key = record_key(data['site_id'], data['kind'], data['source_guid'])
         with self.lock, self.db:
             old = self.db.execute('SELECT revision,body FROM inbox WHERE key=?', (key,)).fetchone()
             if old and old['revision'] >= data['updated_at']:
@@ -397,6 +401,20 @@ class Engine:
         for r in rows:
             name = self.db.execute('SELECT name FROM names WHERE site_id=? AND kind=? AND id=?', (r['site_id'], kind, r['id'])).fetchone()
             out.append({'id': r['id'], 'name': name[0] if name else r['id'], 'count': r['n']})
+        return out
+
+    def has_key(self, key):
+        with self.lock:
+            return self.db.execute('SELECT 1 FROM inbox WHERE key=?', (key,)).fetchone() is not None
+
+    def records_by_keys(self, keys):
+        """Processed records in the order requested; keys still waiting in the inbox are skipped."""
+        out = []
+        with self.lock:
+            for key in keys:
+                row = self.db.execute('SELECT body FROM records WHERE key=?', (key,)).fetchone()
+                if row:
+                    out.append(json.loads(row['body']))
         return out
 
     def replay(self, site_id, actor='system'):

@@ -31,6 +31,31 @@ EVENTS = [
 ]
 
 # phrase (folded) -> (label, attribute role, folded value) produced by extraction
+COLORS = [('xanh la', 'green'), ('xanh duong', 'blue'), ('xanh', 'blue'), ('do', 'red'), ('den', 'black'), ('trang', 'white'),
+          ('xam', 'gray'), ('vang', 'yellow'), ('cam', 'orange'), ('tim', 'purple'), ('hong', 'pink'), ('nau', 'brown')]
+COLOR_RE = '|'.join(c for c, _ in COLORS)
+COLOR_LABEL = {'xanh la': 'xanh lá', 'xanh duong': 'xanh dương', 'xanh': 'xanh', 'do': 'đỏ', 'den': 'đen', 'trang': 'trắng', 'xam': 'xám',
+               'vang': 'vàng', 'cam': 'cam', 'tim': 'tím', 'hong': 'hồng', 'nau': 'nâu'}
+# noun before a colour -> attribute role (extraction assigns the same roles to Active Guard best shots)
+COLOR_NOUNS = [(r'ao(?: khoac| thun| so mi)?', 'upper_color', 'Áo'), (r'quan(?: dai| ngan| jean)?', 'lower_color', 'Quần'),
+               (r'toc', 'hair_color', 'Tóc'), (r'(?:tui|ba lo|cap)', 'bag_color', 'Túi'), (r'giay', 'shoes_color', 'Giày'),
+               (r'(?:xe|o to|xe hoi)', 'vehicle_color', 'Xe')]
+ATTRIBUTES = [
+    (('nam', 'dan ong', 'con trai'), 'Nam', 'gender', 'male'), (('nu', 'phu nu', 'con gai', 'ba'), 'Nữ', 'gender', 'female'),
+    (('tre em', 'be trai', 'be gai', 'em be'), 'Trẻ em', 'age', '0-10'), (('thieu nien', 'hoc sinh'), 'Thiếu niên', 'age', '11-20'),
+    (('nguoi lon', 'trung nien'), 'Người lớn', 'age', '21-60'), (('nguoi gia', 'cao tuoi', 'nguoi cao tuoi', 'ong gia', 'ba gia'), 'Người cao tuổi', 'age', '61+'),
+    (('toc dai',), 'Tóc dài', 'hair_style', 'long-hair'), (('toc ngan',), 'Tóc ngắn', 'hair_style', 'short-hair'),
+    (('doi mu', 'deo mu', 'mu bao hiem', 'co mu'), 'Đội mũ', 'hair_style', 'hat'),
+    (('deo kinh', 'kinh ram', 'kinh mat', 'deo kinh ram'), 'Đeo kính', 'sunglasses', 'yes'),
+    (('khau trang', 'deo khau trang'), 'Khẩu trang', 'face_mask', 'yes'), (('co rau', 'rau'), 'Có râu', 'beard', 'yes'),
+    (('mang tui', 'deo tui', 'xach tui', 'deo ba lo', 'co tui', 'ba lo'), 'Có túi', 'bag', 'yes'),
+    (('ao dai tay',), 'Áo dài tay', 'upper_garment', 'long-sleeves'), (('ao ngan tay', 'ao coc tay', 'ao phong'), 'Áo ngắn tay', 'upper_garment', 'short-sleeves'),
+    (('quan dai',), 'Quần dài', 'lower_garment', 'long'), (('quan ngan', 'quan dui', 'quan short'), 'Quần ngắn', 'lower_garment', 'short'),
+    (('xe tai',), 'Xe tải', 'vehicle_type', 'truck'), (('xe buyt', 'xe khach'), 'Xe buýt', 'vehicle_type', 'bus'), (('suv',), 'SUV', 'vehicle_type', 'suv'),
+    (('xe van',), 'Xe van', 'vehicle_type', 'van'), (('sedan', 'xe con'), 'Xe sedan', 'vehicle_type', 'sedan'),
+    (('ban tai', 'xe ban tai'), 'Xe bán tải', 'vehicle_type', 'pickup'), (('xe may', 'xe hai banh', 'mo to'), 'Xe hai bánh', 'vehicle_type', 'two-wheels'),
+]
+
 FACTS = [
     (('nguoi la', 'stranger', 'unknown person', 'khong xac dinh'), 'Người lạ', 'identity_status', 'unknown'),
     (('nguoi quen', 'da dang ky', 'registered person', 'nhan vien'), 'Người đã đăng ký', 'identity_status', 'known'),
@@ -40,7 +65,7 @@ FACTS = [
     (('tu choi', 'khong co quyen', 'access denied', 'bi chan'), 'Bị từ chối', 'action', 'tu choi'),
 ]
 
-STOP = set('''co khong cac nhung nao o tai trong luc vao cua la bi da duoc cho toi xem tim kiem hay voi va hoac su kien event
+STOP = set('''nguoi co khong cac nhung nao o tai trong luc vao cua la bi da duoc cho toi xem tim kiem hay voi va hoac su kien event
     events camera cam thiet nguon gi bao nhieu lan the khi ai nhu the nao dau khu vuc tu den gio h ngay tat ca moi
     show find me the at in on of and or any all hien thi liet ke danh sach ra nhe a oi di duoc khong'''.split())
 
@@ -133,18 +158,42 @@ def interpret(text, catalog, now=None):
             m = re.search(r'\b' + re.escape(phrase) + r'\b', n)
             if not m or any(a <= m.start() < b for a, b in used):
                 continue
-            used.append(m.span())
             if event_kind:
+                used.append(m.span())
                 kind = event_kind
                 chips.append({'type': 'kind', 'label': label})
             else:
                 matched = {i for i, name in names if re.search(pattern, name)}
-                if matched:
-                    event_ids |= matched
-                    chips.append({'type': 'event', 'label': label})
+                if not matched:
+                    continue   # this kind of event has not been seen: leave the words for other rules
+                used.append(m.span())
+                event_ids |= matched
+                chips.append({'type': 'event', 'label': label})
             break
 
     facts = []
+    for noun, role, label in COLOR_NOUNS:
+        for m in re.finditer(r'\b' + noun + r'(?: mau)? (' + COLOR_RE + r')\b', n):
+            if any(a <= m.start() < b for a, b in used):
+                continue
+            color = dict(COLORS)[m.group(1)]
+            used.append(m.span())
+            facts.append([role, color])
+            chips.append({'type': 'fact', 'label': f"{label} {COLOR_LABEL[m.group(1)]}"})
+    for phrases, label, role, value in ATTRIBUTES:
+        for phrase in sorted(phrases, key=len, reverse=True):
+            m = re.search(r'\b' + re.escape(phrase) + r'\b', n)
+            if m and not any(a <= m.start() < b for a, b in used):
+                used.append(m.span())
+                facts.append([role, value])
+                chips.append({'type': 'fact', 'label': label})
+                break
+    if any(f[0] == 'vehicle_type' for f in facts):   # "xe tải màu trắng": the colour follows the type word
+        for m in re.finditer(r'\bmau (' + COLOR_RE + r')\b', n):
+            if not any(a <= m.start() < b for a, b in used):
+                used.append(m.span())
+                facts.append(['vehicle_color', dict(COLORS)[m.group(1)]])
+                chips.append({'type': 'fact', 'label': f'Màu {COLOR_LABEL[m.group(1)]}'})
     for phrases, label, role, value in FACTS:
         for phrase in phrases:
             m = re.search(r'\b' + re.escape(phrase) + r'\b', n)

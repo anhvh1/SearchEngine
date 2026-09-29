@@ -54,10 +54,10 @@ def test_brand_name_relative_time_and_alarm():
 
 
 def test_date_and_unknown_words_become_keywords():
-    r = ask('khuôn mặt ngày 17/9 áo đỏ Hùng')
+    r = ask('khuôn mặt ngày 17/9 anh Hùng')
     assert r['filters']['event_types'] == ['face']
     assert r['filters']['start'] == datetime(2026, 9, 17, tzinfo=VN)
-    assert r['keywords'] == 'ao do hung'
+    assert r['keywords'] == 'anh hung'
 
 
 def test_ask_endpoint_explains_and_recovers_from_unknown_words(tmp_path):
@@ -81,3 +81,15 @@ def test_ask_endpoint_explains_and_recovers_from_unknown_words(tmp_path):
         r = c.post('/api/ask', json={'text': 'chuyển động xyzzy'}, headers=h).json()
         assert r['total'] == 2 and r['ignored_words'] == 'xyzzy'
         assert c.post('/api/ask', json={'text': ''}, headers=h).json()['total'] == 3
+
+
+def test_person_and_vehicle_attributes():
+    r = ask('người nam áo đỏ quần đen đội mũ đeo khẩu trang mang túi xanh hôm nay')
+    facts = {tuple(f) for f in r['filters']['facts']}
+    assert {('gender', 'male'), ('upper_color', 'red'), ('lower_color', 'black'), ('hair_style', 'hat'),
+            ('face_mask', 'yes'), ('bag_color', 'blue')} <= facts
+    assert r['keywords'] == ''
+    r = ask('xe tải màu trắng và xe máy')
+    assert {('vehicle_type', 'truck'), ('vehicle_color', 'white'), ('vehicle_type', 'two-wheels')} <= {tuple(f) for f in r['filters']['facts']}
+    assert {('age', '61+'), ('gender', 'female'), ('upper_garment', 'long-sleeves')} <= {tuple(f) for f in ask('phụ nữ cao tuổi áo dài tay')['filters']['facts']}
+    assert ('hair_color', 'black') in {tuple(f) for f in ask('tóc đen')['filters']['facts']}

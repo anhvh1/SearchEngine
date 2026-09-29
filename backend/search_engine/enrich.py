@@ -107,6 +107,8 @@ def enrich(engine, key, data, result):
     result['facts'] = {**facts, **{role + 's': sorted(v.values()) for role, v in entities.items()}}
 
     signature = result['event_type'] + '|' + ';'.join(sorted(k for v in entities.values() for k in v))
+    if (data.get('payload') or {}).get('activeguard', {}).get('type') in ('people', 'vehicle', 'face'):
+        signature += '|' + key   # each best shot is a different person or vehicle: never merge them
     link(engine, key, data, signature)
     words = [str(a['value']) for a in attrs if not isinstance(a['value'], (int, float))]
     return ' '.join(words + [label, *facts.get('action', []), 'nguoi la' if facts.get('identity_status') == 'unknown' else ''])

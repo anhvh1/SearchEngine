@@ -134,7 +134,7 @@ def test_ask_counts_occurrences_and_serves_the_snapshot(tmp_path):
 
 def test_rule_admin_and_model_proposals(tmp_path, monkeypatch):
     import search_engine.ai as ai
-    c, h = api(tmp_path, {'chat_model': 'test'})
+    c, h = api(tmp_path, {'chat_model': 'test', 'vision_model': 'test'})
     with c:
         post_all(c, [faceme(1, 'VIP', 'Khach VIP Nguyen Van An den quay 3', 'VIP', 0)])
         monkeypatch.setattr(ai, 'chat', lambda *a, **k: json.dumps({'template': 'Khach VIP {} den quay {}', 'roles': ['person', 'number']}))
