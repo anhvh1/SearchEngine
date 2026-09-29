@@ -3,6 +3,8 @@ const $ = id => document.getElementById(id);
 const PAGE = 50;
 let token = '', tokenMode = false, offset = 0, lastText = '', caps = {}, recorder = null, recognizer = null;
 const EXAMPLES = ['Chuyển động hôm nay', 'Camera mất kết nối tuần này', 'Nhận diện khuôn mặt hôm qua', 'Xâm nhập sau 22h tối qua', 'Cảnh báo 7 ngày qua'];
+// Inside Smart Client's own AI Search tab, its chrome already frames us: drop our header and reclaim vertical space.
+if (new URLSearchParams(location.search).get('tab') === 'search' && window.chrome?.webview) document.body.classList.add('embedded');
 
 async function api(path, body, method) {
   const headers = token ? {Authorization: `Bearer ${token}`} : {};
@@ -42,6 +44,7 @@ function signOut() {
   const old = token; token = '';
   if (old) fetch('/api/session', {method: 'DELETE', headers: {Authorization: `Bearer ${old}`}}).catch(() => {});
   $('shell').hidden = true; $('login').hidden = false; $('answer').hidden = true; $('results').replaceChildren(); $('detail').hidden = true;
+  document.body.classList.remove('has-results'); $('examples').hidden = false;
   stopListening();
 }
 $('use-token').onclick = () => { tokenMode = !tokenMode; $('token-login').hidden = !tokenMode; $('password-login').hidden = tokenMode; $('use-token').textContent = tokenMode ? 'Dùng tài khoản Milestone' : 'Dùng mã truy cập'; };
@@ -82,7 +85,7 @@ $('more').onclick = () => ask(lastText, true);
 
 async function ask(text, more = false) {
   offset = more ? offset + PAGE : 0; lastText = text;
-  $('answer').hidden = false; $('examples').hidden = true;
+  $('answer').hidden = false; $('examples').hidden = true; document.body.classList.add('has-results');
   if (!more) { $('summary').textContent = 'Đang tìm…'; $('chips').replaceChildren(); $('results').replaceChildren(); }
   try {
     const data = await api('/ask', {text, tz_offset_minutes: -new Date().getTimezoneOffset(), limit: PAGE, offset});
@@ -171,7 +174,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') $('detail-cl
 $('photo').onclick = () => $('photo-input').click();
 $('photo-input').onchange = async () => {
   const file = $('photo-input').files[0]; $('photo-input').value = ''; if (!file) return;
-  $('answer').hidden = false; $('examples').hidden = true; $('summary').textContent = 'Đang phân tích ảnh…'; $('results').replaceChildren(); $('chips').replaceChildren();
+  $('answer').hidden = false; $('examples').hidden = true; document.body.classList.add('has-results'); $('summary').textContent = 'Đang phân tích ảnh…'; $('results').replaceChildren(); $('chips').replaceChildren();
   try { const form = new FormData(); form.append('file', file); offset = 0; const data = await api(`/ask/image?tz_offset_minutes=${-new Date().getTimezoneOffset()}`, form); lastText = data.described; $('ask-input').value = data.described; render(data, false); }
   catch (err) { $('summary').textContent = err.message; }
 };
