@@ -1,0 +1,672 @@
+[
+  {
+    "id": "M001",
+    "category": "foundation",
+    "title": "Milestone Documentation Portal",
+    "url": "https://doc.milestonesys.com/en-US/",
+    "priority": "P0",
+    "note": "Cổng tài liệu theo phiên bản; chọn đúng release đang triển khai.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M002",
+    "category": "foundation",
+    "title": "Support, downloads, devices, learning",
+    "url": "https://www.milestonesys.com/support/help-and-documentation/support/",
+    "priority": "P0",
+    "note": "Đầu mối installer, device pack, supported devices, eLearning, deployment assistant.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M003",
+    "category": "foundation",
+    "title": "XProtect Corporate 2026 R1 requirements",
+    "url": "https://www.milestonesys.com/support/help-and-documentation/system-requirements/xprotect-corporate-2026-r1/",
+    "priority": "P0",
+    "note": "Yêu cầu hệ thống cho 2026 R1; không thay cho compatibility matrix từng plugin.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M004",
+    "category": "foundation",
+    "title": "XProtect VMS Administrator Manual 2025 R2",
+    "url": "https://doc.milestonesys.com/mc/pdf/2025r2/en-US/MilestoneXProtectVMSproducts_AdministratorManual_en-US.pdf",
+    "priority": "P0",
+    "note": "Cài đặt, cấu hình, recording, metadata, rules, roles, vận hành.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M005",
+    "category": "foundation",
+    "title": "Smart Client User Manual 2025 R2",
+    "url": "https://doc.milestonesys.com/sc/pdf/2025r2/en-US/MilestoneXProtectSmartClient_UserManual_en-US.pdf",
+    "priority": "P0",
+    "note": "Live/playback, Search, bookmarks, evidence, incident workflow.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M006",
+    "category": "foundation",
+    "title": "API Gateway Administrator Manual 2024 R2",
+    "url": "https://doc.milestonesys.com/addons/pdf/2024r2/en-US/MilestoneXProtectAPIGateway_AdministratorManual_en-US.pdf",
+    "priority": "P0",
+    "note": "Baseline lịch sử 2024 R2; xác nhận lại với release đích.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M007",
+    "category": "foundation",
+    "title": "Hardening Guide 2021 R1",
+    "url": "https://doc.milestonesys.com/sysarch/pdf/2021r1/en-US/Milestone_HardeningGuide_en-US.pdf",
+    "priority": "P1",
+    "note": "Tài liệu lịch sử; lấy bản khớp release từ portal trước triển khai.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M008",
+    "category": "sdk",
+    "title": "Developer Portal",
+    "url": "https://www.milestonesys.com/support/for-developers/developer-portal/",
+    "priority": "P0",
+    "note": "SDK, AI Bridge, mẫu mã và cộng đồng nhà phát triển.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M009",
+    "category": "sdk",
+    "title": "MIP API overview",
+    "url": "https://doc.developer.milestonesys.com/mipvmsapi/api-overview/",
+    "priority": "P0",
+    "note": "Tra cứu Configuration, Events, Alarms, Authentication, media và Access.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M010",
+    "category": "sdk",
+    "title": "MIP SDK Quickstart",
+    "url": "https://doc.developer.milestonesys.com/mipvmsapi/content/quickstart/",
+    "priority": "P0",
+    "note": "Dựng môi trường dev và integration đầu tiên.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M011",
+    "category": "sdk",
+    "title": "MIP SDK Getting Started PDF",
+    "url": "https://doc.milestonesys.com/sysarch/pdf/latest/en-US/MilestoneMIPSDK_GettingStartedGuide_en-US.pdf",
+    "priority": "P0",
+    "note": "Protocol/component/plugin, môi trường và repository mẫu; URL latest có thể đổi nội dung.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M012",
+    "category": "sdk",
+    "title": "MIP SDK introductions index",
+    "url": "https://doc.developer.milestonesys.com/mipsdk/tree_4.html",
+    "priority": "P0",
+    "note": "Analytics, rules, MIP Driver, Transact, Search Agent, metadata, ACM.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M013",
+    "category": "sdk",
+    "title": "API Gateway endpoints",
+    "url": "https://doc.developer.milestonesys.com/mipsdk/reference/protocols/api-gateway.html",
+    "priority": "P0",
+    "note": "Discovery URI và REST/WebSocket entry points.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M014",
+    "category": "sdk",
+    "title": "REST Events API",
+    "url": "https://doc.developer.milestonesys.com/mipvmsapi/api/events-rest/v1/",
+    "priority": "P0",
+    "note": "Event retrieval/trigger; dữ liệu trả về phụ thuộc retention.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M015",
+    "category": "sdk",
+    "title": "REST Alarms API",
+    "url": "https://doc.developer.milestonesys.com/mipvmsapi/api/alarms-rest/v1/",
+    "priority": "P0",
+    "note": "Query alarm, state, priority, snapshot; yêu cầu phiên bản/license.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M016",
+    "category": "sdk",
+    "title": "Events integration options",
+    "url": "https://doc.developer.milestonesys.com/mipvmsapi/api-overview/integrations/events/",
+    "priority": "P0",
+    "note": "REST lịch sử, WebSocket realtime, webhooks và legacy protocols.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M017",
+    "category": "sdk",
+    "title": "Messaging WebSocket API",
+    "url": "https://doc.developer.milestonesys.com/mipvmsapi/api/messages-ws/v1/",
+    "priority": "P1",
+    "note": "Messaging giữa thành phần; không đồng nhất với kho lịch sử event.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M018",
+    "category": "sdk",
+    "title": "Introduction to metadata",
+    "url": "https://doc.developer.milestonesys.com/mipsdk/gettingstarted/intro_metadata.html",
+    "priority": "P0",
+    "note": "ONVIF MetadataStream; provider, live, playback; trường phụ thuộc nguồn.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M019",
+    "category": "sdk",
+    "title": "Metadata integrations",
+    "url": "https://doc.developer.milestonesys.com/mipsdk/gettingstarted/Metadata_integrations.html",
+    "priority": "P0",
+    "note": "Metadata producer/consumer và recording server.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M020",
+    "category": "sdk",
+    "title": "Metadata Playback Viewer sample",
+    "url": "https://doc.developer.milestonesys.com/mipsdk/samples/ComponentSamples/MetadataPlaybackViewer/README.html",
+    "priority": "P0",
+    "note": "Mẫu đọc metadata đã ghi để làm backfill.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M021",
+    "category": "sdk",
+    "title": "MIP Search integration - Search agents",
+    "url": "https://doc.developer.milestonesys.com/mipsdk/gettingstarted/intro_searchagent.html",
+    "priority": "P0",
+    "note": "Plugin Search Smart Client; category, filters, result và license.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M022",
+    "category": "sdk",
+    "title": "Protocol samples repository",
+    "url": "https://github.com/milestonesys/mipsdk-samples-protocol",
+    "priority": "P0",
+    "note": "Python Events/Alarms, OAuth, WebSocket, WebRTC, bookmarks.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M023",
+    "category": "sdk",
+    "title": "Component samples repository",
+    "url": "https://github.com/milestonesys/mipsdk-samples-component",
+    "priority": "P0",
+    "note": "Standalone .NET integrations và media/metadata.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M024",
+    "category": "sdk",
+    "title": "Plugin samples repository",
+    "url": "https://github.com/milestonesys/mipsdk-samples-plugin",
+    "priority": "P0",
+    "note": "Smart Client, Management Client, Event Server; xem SCSearchAgent.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M025",
+    "category": "sdk",
+    "title": "New App Platform portal",
+    "url": "https://portal.developer.milestonesys.com/",
+    "priority": "P2",
+    "note": "Portal đang ghi beta/early access cho pilot partners; không mặc định dùng production.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M026",
+    "category": "faceme",
+    "title": "FaceMe Security overview",
+    "url": "https://www.cyberlink.com/faceme/solution/security/overview?trk=products_details_guest_secondary_call_to_action",
+    "priority": "P0",
+    "note": "Có tích hợp Milestone; danh sách FaceMe Locator hiện không nêu Milestone.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M027",
+    "category": "faceme",
+    "title": "FaceMe Milestone compatibility verification",
+    "url": "https://www.milestonesys.com/globalassets/marketplace/uploaded-assets/0013x00002ho0cfqaa/cyberlink-faceme-11032021.pdf",
+    "priority": "P0",
+    "note": "Chỉ xác nhận FaceMe 5.4.0 + Professional+ 2020 R2, ngày 11-03-2021; có tên 3 tài liệu cần xin hãng.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M028",
+    "category": "faceme",
+    "title": "FaceMe FAQ / partner resources",
+    "url": "https://www.cyberlink.com/faceme/resource/faq?prodId=447",
+    "priority": "P1",
+    "note": "Một số FAQ và hướng dẫn chi tiết nằm trong partner program.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M029",
+    "category": "ipro",
+    "title": "Active Guard Setup Instructions for XProtect",
+    "url": "https://i-pro.com/products_and_solutions/eu-en/surveillance/documentation-database/i-pro-active-guard-setup-instructions-xprotect",
+    "priority": "P0",
+    "note": "Trang tải hướng dẫn, modified date hiển thị 12 Feb 2026.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M030",
+    "category": "ipro",
+    "title": "Active Guard XProtect Operating Instructions (filename installer guide)",
+    "url": "https://www.milestonesys.com/globalassets/marketplace/uploaded-assets/0010o00001oqdwnqam/i-pro-active-guard-plugin-for-xprotect---installer-guide-v1.5.0.pdf",
+    "priority": "P0",
+    "note": "Tên file dễ gây nhầm: nội dung là operating instructions. Best-shot/metadata lưu riêng ở Active Guard.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M031",
+    "category": "ipro",
+    "title": "Tested version combinations for Milestone",
+    "url": "https://i-pro.com/products_and_solutions/en/media/documentation_file/138186",
+    "priority": "P0",
+    "note": "Ma trận XProtect/plugin/Active Guard/camera AI app; cần kiểm tra trước nâng cấp.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M032",
+    "category": "ipro",
+    "title": "AI-VMD metadata search integration FAQ",
+    "url": "https://i-pro.com/products_and_solutions/us-en/surveillance/faq-list/us-en124551",
+    "priority": "P0",
+    "note": "Cấu hình AI-VMD, metadata Management Client, tìm Smart Client.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M033",
+    "category": "ipro",
+    "title": "Milestone FAQ collection",
+    "url": "https://iproiot.atlassian.net/wiki/spaces/FAQ/pages/1090588901/Milestone",
+    "priority": "P1",
+    "note": "People/vehicle/face, Maximizer, VaxALPR, metadata, firmware và troubleshooting.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M034",
+    "category": "ipro",
+    "title": "i-PRO VMS integration guide",
+    "url": "https://iproiot.atlassian.net/wiki/spaces/TPFAQEN/pages/1051271527/VMS%2Bintegration%2Bguide",
+    "priority": "P1",
+    "note": "Đầu mối hướng dẫn tích hợp theo VMS.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M035",
+    "category": "ipro",
+    "title": "ORBNET Active Guard and Maximizer",
+    "url": "https://www.orbnetsys.com/advanced-i-pro-ai-search-and-camera-control-orbnet-for-milestone-xprotect",
+    "priority": "P1",
+    "note": "Nguồn nhà phát triển plugin; tìm đúng installer và support.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M036",
+    "category": "ipro",
+    "title": "i-PRO Configuration Tool for Milestone",
+    "url": "https://i-pro.com/products_and_solutions/en/media/documentation_file/105471",
+    "priority": "P1",
+    "note": "Cài và dùng công cụ cấu hình camera.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M037",
+    "category": "ipro",
+    "title": "AI Processing Relay guide",
+    "url": "https://i-pro.com/products_and_solutions/sites/default/files/2023-04/AIProcessingRelay_webguide_en_Ver2.00_0.pdf",
+    "priority": "P2",
+    "note": "Mở rộng AI cho camera khác; kiểm tra giới hạn event routing của từng release.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M038",
+    "category": "acs",
+    "title": "XProtect Access integration overview",
+    "url": "https://www.milestonesys.com/articles/access-control-xprotect-vms/",
+    "priority": "P0",
+    "note": "Thành phần ACS, plugin hãng, XProtect Access và license.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M039",
+    "category": "acs",
+    "title": "Access Control Module developer introduction",
+    "url": "https://doc.developer.milestonesys.com/mipsdk/gettingstarted/intro_accesscontrol.html",
+    "priority": "P0",
+    "note": "MIP-AC và lựa chọn viết plugin ACS.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M040",
+    "category": "acs",
+    "title": "Access Control integration architecture",
+    "url": "https://doc.developer.milestonesys.com/mipsdk/gettingstarted/Access_control.html",
+    "priority": "P0",
+    "note": "Tích hợp qua Event Server; maps, state và rule actions.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M041",
+    "category": "acs",
+    "title": "XProtect Access for OnGuard manual",
+    "url": "https://doc.milestonesys.com/int/pdf/latest/en-US/MilestoneXProtectAccessOnGuard_Manual_en-US.pdf",
+    "priority": "P0",
+    "note": "Deployment, event, cardholder, camera association, alarm; URL latest có thể đổi.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M042",
+    "category": "acs",
+    "title": "OnGuard compatibility matrix",
+    "url": "https://download.milestonesys.com/lenels2xpa/OnGuard-XProtect-Access-Compatibility.pdf",
+    "priority": "P0",
+    "note": "Xác nhận tổ hợp phiên bản; không suy rộng mọi bản tương thích.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M043",
+    "category": "acs",
+    "title": "OnGuard quick guide v4.4",
+    "url": "https://download.milestonesys.com/lenelACM/v4.4/Milestone-XPA-OnGuard-Quick-Guide.pdf",
+    "priority": "P1",
+    "note": "Các bước triển khai thành phần tích hợp.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M044",
+    "category": "acs",
+    "title": "Nedap AEOS integration",
+    "url": "https://www.nedapsecurity.com/technology-partner/milestone/",
+    "priority": "P1",
+    "note": "Cardholder, door, alarm và intrusion; lấy matrix hiện hành.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M045",
+    "category": "acs",
+    "title": "Gallagher Command Centre integration",
+    "url": "https://products.security.gallagher.com/security/us/en_US/products/integrations/milestone-vms-integration/p/C12730",
+    "priority": "P1",
+    "note": "Hai chiều theo chức năng được hãng liệt kê; tài liệu chi tiết có thể cần partner.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M046",
+    "category": "acs",
+    "title": "Nedap AEOS deployment case - DHL Saudi Arabia",
+    "url": "https://www.nedapsecurity.com/client/dhl-saudi-arabia/",
+    "priority": "P2",
+    "note": "Case study triển khai thực tế; không thay thế API/manual.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M047",
+    "category": "parking",
+    "title": "XProtect LPR Administrator Manual 2025 R1",
+    "url": "https://doc.milestonesys.com/addons/pdf/2025r1/en-US/MilestoneXProtectLPR_AdministratorManual_en-US.pdf",
+    "priority": "P0",
+    "note": "LPR, cấu hình camera và matching/events; parking session cần nguồn nghiệp vụ.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M048",
+    "category": "parking",
+    "title": "IPsens FuseParking Milestone integration manual",
+    "url": "https://www.milestonesys.com/globalassets/marketplace/uploaded-assets/0013x00002hmrm1qam/milestone-integration-user-manual-1.pdf",
+    "priority": "P0",
+    "note": "Mapping parking events/cameras và trách nhiệm cấu hình.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M049",
+    "category": "parking",
+    "title": "Parquery Milestone integration",
+    "url": "https://parquery.com/milestone-integration/",
+    "priority": "P1",
+    "note": "Plugin occupancy/duration, live/playback; còn dashboard riêng.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M050",
+    "category": "bms",
+    "title": "Milestone BACnet Integration User Guide",
+    "url": "https://www.milestonesys.com/globalassets/marketplace/uploaded-assets/0012000000c2oxaaab/bacnetintegrationuserguide.pdf",
+    "priority": "P0",
+    "note": "BACnet client/server, object mapping và analytic events; xác nhận release.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M051",
+    "category": "bms",
+    "title": "I/O systems and Building Management SDK",
+    "url": "https://doc.developer.milestonesys.com/mipsdk/gettingstarted/IO_systems_Building_management.html",
+    "priority": "P0",
+    "note": "Kiến trúc tích hợp hệ phi video.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M052",
+    "category": "bms",
+    "title": "Radinium Fire BACnet",
+    "url": "https://radinium.com/products/fire-integration-series-bacnet/",
+    "priority": "P1",
+    "note": "Fire BACnet/IP, camera/maps/events; trang ghi verification in progress.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M053",
+    "category": "incident",
+    "title": "Incident Manager Administrator Manual 2023 R2",
+    "url": "https://doc.milestonesys.com/addons/pdf/2023r2/en-US/MilestoneXProtectIncidentManager_AdministratorManual_en-US.pdf",
+    "priority": "P0",
+    "note": "Baseline workflow/properties; cập nhật manual đúng version khi biết hệ đích.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M054",
+    "category": "incident",
+    "title": "System communication - Incident Manager",
+    "url": "https://doc.milestonesys.com/2024r1/pl-PL/system/sad/sad_systemcommunicationanddata.htm?TocPath=Narz%C4%99dzia+i+architektura%7CArchitektura+systemu+XProtect+VMS%7C_systemarch_%7C_____8",
+    "priority": "P1",
+    "note": "Incident project có lưu trữ riêng; không coi Alarm API là Incident API.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M055",
+    "category": "ai",
+    "title": "Milestone AI Bridge Integrator Manual v2.0",
+    "url": "https://doc.milestonesys.com/AIB/PDF/v2_0/en-US/MilestoneAIBridge_IntegratorManual_en-US.pdf",
+    "priority": "P0",
+    "note": "Tích hợp analytics và media/events/metadata; kiểm tra prerequisite.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M056",
+    "category": "ai",
+    "title": "AI Bridge sample repository",
+    "url": "https://github.com/milestonesys/MIP-AIBridge-samples",
+    "priority": "P1",
+    "note": "Mẫu tích hợp AI Bridge của Milestone.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M057",
+    "category": "ai",
+    "title": "Rapid REVIEW Installation and Deployment 2024 M1",
+    "url": "https://doc.milestonesys.com/xprr/pdf/2024m1/en-US/MilestoneXProtectRapidReview_InstallationGuide_en-US.pdf",
+    "priority": "P1",
+    "note": "Tài liệu deployment analytics liên quan BriefCam; kiểm tra sản phẩm/license hiện hành.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M058",
+    "category": "ai",
+    "title": "BriefCam Milestone certification report 2019",
+    "url": "https://www.milestonesys.com/globalassets/marketplace/uploaded-assets/0012000000oustraas/2018-certification-report---briefcam-jan-31-2019.pdf",
+    "priority": "P2",
+    "note": "Bằng chứng tích hợp lịch sử; không chứng minh tính tương thích hiện tại.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M059",
+    "category": "ai",
+    "title": "Milestone AI Search announcement",
+    "url": "https://www.milestonesys.com/company/news/press-releases/ai-built-for-security-operations/",
+    "priority": "P0",
+    "note": "Thông báo AI Search dự kiến cuối 2026; phân biệt roadmap với release đã khả dụng.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M060",
+    "category": "ai",
+    "title": "Arcules June 2026 Q&A",
+    "url": "https://www.milestonesys.com/articles/june-2026-arcules-updates-webinar-recording-and-qa/",
+    "priority": "P1",
+    "note": "XProtect và Arcules có luồng tìm riêng; không suy diễn một API chung.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M061",
+    "category": "ai",
+    "title": "Vaidio integration FAQ",
+    "url": "https://www.vaidio.ai/faq",
+    "priority": "P1",
+    "note": "Xác nhận Milestone thuộc nhóm VMS tích hợp; cần xin API và matrix.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M062",
+    "category": "ai",
+    "title": "Vaidio / App-Techs BTX deployment case",
+    "url": "https://www.vaidio.ai/blog/customer-success-story-app-techs",
+    "priority": "P2",
+    "note": "Ví dụ kết nối analytics vào Milestone qua BTX.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M063",
+    "category": "ai_voice",
+    "title": "NVIDIA VSS blueprint",
+    "url": "https://build.nvidia.com/nvidia/video-search-and-summarization/blueprintcard",
+    "priority": "P0",
+    "note": "Kiến trúc tham khảo video search, VLM và retrieval; chưa phải connector Milestone.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M064",
+    "category": "ai_voice",
+    "title": "NVIDIA VSS architecture 2.4.1",
+    "url": "https://docs.nvidia.com/vss/2.4.1/content/architecture.html",
+    "priority": "P1",
+    "note": "Ingestion và retrieval pipelines, context-aware RAG.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M065",
+    "category": "ai_voice",
+    "title": "NVIDIA voice/video agent workflow",
+    "url": "https://developer.nvidia.com/blog/build-an-agentic-video-workflow-with-video-search-and-summarization/",
+    "priority": "P1",
+    "note": "Ví dụ ASR/TTS với Riva; cần benchmark tiếng Việt riêng.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M066",
+    "category": "ai_voice",
+    "title": "NVIDIA VSS source repository",
+    "url": "https://github.com/NVIDIA-AI-Blueprints/video-search-and-summarization",
+    "priority": "P1",
+    "note": "Reference implementation; kiểm tra model/hardware/license theo release.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Nguồn chính thức được tìm thấy qua web; phạm vi đọc: trang hoặc phần liên quan, không phải kiểm thử sản phẩm."
+  },
+  {
+    "id": "M067",
+    "category": "ipro",
+    "title": "Active Guard Setup Instructions for XProtect — PDF",
+    "url": "https://i-pro.com/products_and_solutions/sites/default/files/2026-02/i-PRO%20Active%20Guard%20Setup%20Instructions%20for%20XProtect.pdf",
+    "priority": "P0",
+    "note": "PDF lấy từ liên kết download của M029; phiên bản file 2026-02.",
+    "discovered_on": "2026-09-14",
+    "evidence": "Liên kết download trích trực tiếp từ trang chính thức."
+  }
+]

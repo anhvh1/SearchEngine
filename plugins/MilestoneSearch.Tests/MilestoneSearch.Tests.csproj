@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net48</TargetFramework><OutputType>Exe</OutputType><LangVersion>latest</LangVersion><SdkPath Condition="'$(SdkPath)' == ''">C:\Program Files\Milestone\XProtect Smart Client</SdkPath></PropertyGroup>
+  <ItemGroup><PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" /><PackageReference Include="Newtonsoft.Json" Version="13.0.3" /></ItemGroup>
+  <ItemGroup><Reference Include="VideoOS.Platform"><HintPath>$(SdkPath)\VideoOS.Platform.dll</HintPath><Private>true</Private></Reference><Reference Include="System.Net.Http" /></ItemGroup>
+  <ItemGroup><Compile Include="..\MilestoneSearch\PluginSettings.cs" Link="PluginSettings.cs" Condition="Exists('..\MilestoneSearch\PluginSettings.cs')"/><Compile Include="..\MilestoneSearch\Outbox.cs" Link="Outbox.cs" Condition="Exists('..\MilestoneSearch\Outbox.cs')"/><Compile Include="..\MilestoneSearch\EnvelopeMapper.cs" Link="EnvelopeMapper.cs" Condition="Exists('..\MilestoneSearch\EnvelopeMapper.cs')"/></ItemGroup>
+</Project>

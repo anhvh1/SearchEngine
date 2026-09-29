@@ -1,0 +1,30 @@
+.venv/
+__pycache__/
+.pytest_cache/
+*.egg-info/
+data/
+.env
+config.local.json
+**/bin/
+**/obj/
+node_modules/
+test-results/
+playwright-report/
+dist/
+.build/
+
+# Milestone backups and research downloads: real names/faces, very large, third-party copyright
+MilestoneDB/
+research/milestone/pdf/
+docs/*.docx
+*.bak
+*.mdf
+*.ldf
+*.db
+*.db-shm
+*.db-wal
+*.token
+
+# Reference projects from another product, not part of this deliverable
+docs/PsimEvent/
+docs/PsimManagement/

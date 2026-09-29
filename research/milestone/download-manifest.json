@@ -1,0 +1,202 @@
+[
+  {
+    "id": "M004",
+    "url": "https://doc.milestonesys.com/mc/pdf/2025r2/en-US/MilestoneXProtectVMSproducts_AdministratorManual_en-US.pdf",
+    "retrieved_at": "2026-09-14T15:39:44.112971+00:00",
+    "final_url": "https://doc.milestonesys.com/mc/pdf/2025r2/en-US/MilestoneXProtectVMSproducts_AdministratorManual_en-US.pdf",
+    "status": "downloaded",
+    "file": "pdf/M004.pdf",
+    "bytes": 8795138,
+    "sha256": "e5e0002340ce801c6c6c2ce0b1c1d89eb2e91313ba5cf01d1a430d21750d9cdb"
+  },
+  {
+    "id": "M005",
+    "url": "https://doc.milestonesys.com/sc/pdf/2025r2/en-US/MilestoneXProtectSmartClient_UserManual_en-US.pdf",
+    "retrieved_at": "2026-09-14T15:39:44.112971+00:00",
+    "final_url": "https://doc.milestonesys.com/sc/pdf/2025r2/en-US/MilestoneXProtectSmartClient_UserManual_en-US.pdf",
+    "status": "downloaded",
+    "file": "pdf/M005.pdf",
+    "bytes": 6797746,
+    "sha256": "8deee286e18e83817a3d6c6b7f3c4b17da1cf16bfda35a94d1bd1209fa70ac62"
+  },
+  {
+    "id": "M006",
+    "url": "https://doc.milestonesys.com/addons/pdf/2024r2/en-US/MilestoneXProtectAPIGateway_AdministratorManual_en-US.pdf",
+    "retrieved_at": "2026-09-14T15:39:44.114278+00:00",
+    "final_url": "https://doc.milestonesys.com/addons/pdf/2024r2/en-US/MilestoneXProtectAPIGateway_AdministratorManual_en-US.pdf",
+    "status": "downloaded",
+    "file": "pdf/M006.pdf",
+    "bytes": 245520,
+    "sha256": "32679211b8df164a6830f01d1fdbcf276b416f0848763df5fc46eb3ec2624ce2"
+  },
+  {
+    "id": "M007",
+    "url": "https://doc.milestonesys.com/sysarch/pdf/2021r1/en-US/Milestone_HardeningGuide_en-US.pdf",
+    "retrieved_at": "2026-09-14T15:39:44.199760+00:00",
+    "final_url": "https://doc.milestonesys.com/sysarch/pdf/2021r1/en-US/Milestone_HardeningGuide_en-US.pdf",
+    "status": "downloaded",
+    "file": "pdf/M007.pdf",
+    "bytes": 3984479,
+    "sha256": "ece67b778ebe50f5f1d90556239dd275d35de70047d60852447548d9d99f049c"
+  },
+  {
+    "id": "M011",
+    "url": "https://doc.milestonesys.com/sysarch/pdf/latest/en-US/MilestoneMIPSDK_GettingStartedGuide_en-US.pdf",
+    "retrieved_at": "2026-09-14T15:39:44.229996+00:00",
+    "final_url": "https://doc.milestonesys.com/sysarch/pdf/latest/en-US/MilestoneMIPSDK_GettingStartedGuide_en-US.pdf",
+    "status": "downloaded",
+    "file": "pdf/M011.pdf",
+    "bytes": 2257888,
+    "sha256": "7b1bd888e9a6776024daca55503c65b5443a2fbc6014f718a6e377bed18b6d4a"
+  },
+  {
+    "id": "M027",
+    "url": "https://www.milestonesys.com/globalassets/marketplace/uploaded-assets/0013x00002ho0cfqaa/cyberlink-faceme-11032021.pdf",
+    "retrieved_at": "2026-09-14T15:39:46.469514+00:00",
+    "final_url": "https://www.milestonesys.com/",
+    "status": "failed",
+    "error": "Response is not a PDF; no file saved"
+  },
+  {
+    "id": "M030",
+    "url": "https://www.milestonesys.com/globalassets/marketplace/uploaded-assets/0010o00001oqdwnqam/i-pro-active-guard-plugin-for-xprotect---installer-guide-v1.5.0.pdf",
+    "retrieved_at": "2026-09-14T15:39:47.076818+00:00",
+    "final_url": "https://www.milestonesys.com/",
+    "status": "failed",
+    "error": "Response is not a PDF; no file saved"
+  },
+  {
+    "id": "M031",
+    "url": "https://i-pro.com/products_and_solutions/en/media/documentation_file/138186",
+    "retrieved_at": "2026-09-14T15:39:47.425510+00:00",
+    "final_url": "https://i-pro.com/products_and_solutions/en/media/documentation_file/i-pro_active_guard_milestone_tested_versionpdf",
+    "status": "downloaded",
+    "file": "pdf/M031.pdf",
+    "bytes": 254144,
+    "sha256": "97e0738b66e4c20a3401d094ad880b2e69c551d377d0e31e7d4056181e29c70b"
+  },
+  {
+    "id": "M036",
+    "url": "https://i-pro.com/products_and_solutions/en/media/documentation_file/105471",
+    "retrieved_at": "2026-09-14T15:39:47.835749+00:00",
+    "final_url": "https://i-pro.com/products_and_solutions/en/media/documentation_file/105471",
+    "status": "downloaded",
+    "file": "pdf/M036.pdf",
+    "bytes": 707946,
+    "sha256": "8a207df4be742cf9f98c2130a74bfe67d97a10840b879b18b7425d32d3ffbbe6"
+  },
+  {
+    "id": "M037",
+    "url": "https://i-pro.com/products_and_solutions/sites/default/files/2023-04/AIProcessingRelay_webguide_en_Ver2.00_0.pdf",
+    "retrieved_at": "2026-09-14T15:39:48.185995+00:00",
+    "final_url": "https://i-pro.com/products_and_solutions/sites/default/files/2023-04/AIProcessingRelay_webguide_en_Ver2.00_0.pdf",
+    "status": "downloaded",
+    "file": "pdf/M037.pdf",
+    "bytes": 790405,
+    "sha256": "764d9249a365106491d6b38f7372c220dfada8ad6360c530387914090c731e5d"
+  },
+  {
+    "id": "M041",
+    "url": "https://doc.milestonesys.com/int/pdf/latest/en-US/MilestoneXProtectAccessOnGuard_Manual_en-US.pdf",
+    "retrieved_at": "2026-09-14T15:39:48.496545+00:00",
+    "final_url": "https://doc.milestonesys.com/int/pdf/latest/en-US/MilestoneXProtectAccessOnGuard_Manual_en-US.pdf",
+    "status": "downloaded",
+    "file": "pdf/M041.pdf",
+    "bytes": 14478979,
+    "sha256": "02f7bdad1bc4d5930d7b5689172c90dfcec9f4c93dc694592fb78b087e4b41ef"
+  },
+  {
+    "id": "M042",
+    "url": "https://download.milestonesys.com/lenels2xpa/OnGuard-XProtect-Access-Compatibility.pdf",
+    "retrieved_at": "2026-09-14T15:39:48.578080+00:00",
+    "final_url": "https://download.milestonesys.com/lenels2xpa/OnGuard-XProtect-Access-Compatibility.pdf",
+    "status": "downloaded",
+    "file": "pdf/M042.pdf",
+    "bytes": 36046,
+    "sha256": "e590170a334dc03257455f535f6e46ccac41ec70f8a8d217b23b15a8fecf011c"
+  },
+  {
+    "id": "M043",
+    "url": "https://download.milestonesys.com/lenelACM/v4.4/Milestone-XPA-OnGuard-Quick-Guide.pdf",
+    "retrieved_at": "2026-09-14T15:39:48.807735+00:00",
+    "final_url": "https://download.milestonesys.com/lenelACM/v4.4/Milestone-XPA-OnGuard-Quick-Guide.pdf",
+    "status": "downloaded",
+    "file": "pdf/M043.pdf",
+    "bytes": 299416,
+    "sha256": "c047375dc29d285bf69b8e3ab9379c069dabaad092f7902168e2d5e361d3836b"
+  },
+  {
+    "id": "M047",
+    "url": "https://doc.milestonesys.com/addons/pdf/2025r1/en-US/MilestoneXProtectLPR_AdministratorManual_en-US.pdf",
+    "retrieved_at": "2026-09-14T15:39:48.966285+00:00",
+    "final_url": "https://doc.milestonesys.com/addons/pdf/2025r1/en-US/MilestoneXProtectLPR_AdministratorManual_en-US.pdf",
+    "status": "downloaded",
+    "file": "pdf/M047.pdf",
+    "bytes": 1777184,
+    "sha256": "2c276c41577db8ac7079a0d22c14be8984ffbce29ad9e57185794f48a4c2116c"
+  },
+  {
+    "id": "M048",
+    "url": "https://www.milestonesys.com/globalassets/marketplace/uploaded-assets/0013x00002hmrm1qam/milestone-integration-user-manual-1.pdf",
+    "retrieved_at": "2026-09-14T15:39:49.778145+00:00",
+    "final_url": "https://www.milestonesys.com/",
+    "status": "failed",
+    "error": "Response is not a PDF; no file saved"
+  },
+  {
+    "id": "M050",
+    "url": "https://www.milestonesys.com/globalassets/marketplace/uploaded-assets/0012000000c2oxaaab/bacnetintegrationuserguide.pdf",
+    "retrieved_at": "2026-09-14T15:39:50.019803+00:00",
+    "final_url": "https://www.milestonesys.com/",
+    "status": "failed",
+    "error": "Response is not a PDF; no file saved"
+  },
+  {
+    "id": "M053",
+    "url": "https://doc.milestonesys.com/addons/pdf/2023r2/en-US/MilestoneXProtectIncidentManager_AdministratorManual_en-US.pdf",
+    "retrieved_at": "2026-09-14T15:39:50.835773+00:00",
+    "final_url": "https://doc.milestonesys.com/addons/pdf/2023r2/en-US/MilestoneXProtectIncidentManager_AdministratorManual_en-US.pdf",
+    "status": "downloaded",
+    "file": "pdf/M053.pdf",
+    "bytes": 623064,
+    "sha256": "b875a706fb662dcea6ff5f94b87478599dbd78b7723e7f550e52ef5f67755fdc"
+  },
+  {
+    "id": "M055",
+    "url": "https://doc.milestonesys.com/AIB/PDF/v2_0/en-US/MilestoneAIBridge_IntegratorManual_en-US.pdf",
+    "retrieved_at": "2026-09-14T15:39:51.777483+00:00",
+    "final_url": "https://doc.milestonesys.com/AIB/PDF/v2_0/en-US/MilestoneAIBridge_IntegratorManual_en-US.pdf",
+    "status": "downloaded",
+    "file": "pdf/M055.pdf",
+    "bytes": 1963161,
+    "sha256": "480e098b6137cf1b40d098f01dd9e388b4d22fdc65ebd4c081c523505a3fe861"
+  },
+  {
+    "id": "M057",
+    "url": "https://doc.milestonesys.com/xprr/pdf/2024m1/en-US/MilestoneXProtectRapidReview_InstallationGuide_en-US.pdf",
+    "retrieved_at": "2026-09-14T15:39:52.262383+00:00",
+    "final_url": "https://doc.milestonesys.com/xprr/pdf/2024m1/en-US/MilestoneXProtectRapidReview_InstallationGuide_en-US.pdf",
+    "status": "downloaded",
+    "file": "pdf/M057.pdf",
+    "bytes": 4017847,
+    "sha256": "71c48201028f4f4984e712461048025a3c884bc6c340e607e7d9a5b9a91c47a3"
+  },
+  {
+    "id": "M058",
+    "url": "https://www.milestonesys.com/globalassets/marketplace/uploaded-assets/0012000000oustraas/2018-certification-report---briefcam-jan-31-2019.pdf",
+    "retrieved_at": "2026-09-14T15:39:52.407558+00:00",
+    "final_url": "https://www.milestonesys.com/",
+    "status": "failed",
+    "error": "Response is not a PDF; no file saved"
+  },
+  {
+    "id": "M067",
+    "url": "https://i-pro.com/products_and_solutions/sites/default/files/2026-02/i-PRO%20Active%20Guard%20Setup%20Instructions%20for%20XProtect.pdf",
+    "retrieved_at": "2026-09-14T15:39:53.070293+00:00",
+    "final_url": "https://i-pro.com/products_and_solutions/sites/default/files/2026-02/i-PRO%20Active%20Guard%20Setup%20Instructions%20for%20XProtect.pdf",
+    "status": "downloaded",
+    "file": "pdf/M067.pdf",
+    "bytes": 10016094,
+    "sha256": "c3e5109c6a6ef51b7876b1fcd8ac92aa2068120900fb87f1dfedf9ad7807f1c1"
+  }
+]
