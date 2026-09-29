@@ -24,7 +24,7 @@ Build: `./scripts/build-backend.ps1` tạo `dist/MilestoneSearch.Backend-<thời
 Cài đặt: nhấp đúp `MilestoneSearch.Backend.exe`, chấp nhận UAC. Chương trình:
 1. Chép exe vào `C:\Program Files\MilestoneSearch\Backend`.
 2. Lần đầu tạo cấu hình `C:\ProgramData\MilestoneSearch\backend\config.json`: chép từ `config.json`/`config.local.json` đặt cạnh exe nếu có, nếu không thì tạo mới với token ngẫu nhiên và SQLite. Thư mục chỉ SYSTEM và Administrators đọc được. Lần sau giữ nguyên cấu hình.
-3. Đăng ký service `MilestoneSearchBackend` (Automatic, tài khoản LocalSystem, tự restart khi lỗi sau 5/15/60 giây). Nếu database là PostgreSQL trên máy này, service khởi động sau service `postgresql*`.
+3. Đăng ký service `MilestoneSearchBackend` (Automatic, tài khoản LocalSystem, tự restart khi lỗi sau 5/15/60 giây). Nếu database là PostgreSQL trên máy này, backend tự thử kết nối lại tối đa 5 phút khi khởi động (không đặt phụ thuộc service Windows vào PostgreSQL: từng gặp trường hợp Windows chờ PostgreSQL khởi động xong bị quá giờ trong lúc phục hồi sau tắt đột ngột, tự đánh dấu service PostgreSQL là Stopped dù tiến trình vẫn chạy tốt, rồi làm backend không khởi động được — lỗi `1068`).
 4. Khởi động service và kiểm tra HTTP. Log: `C:\ProgramData\MilestoneSearch\backend\logs`.
 
 Nâng cấp hoặc áp dụng thay đổi `database`: chạy lại exe mới/cũ. Sửa cấu hình khác: `MilestoneSearch.Backend.exe restart`. Lệnh khác: `status`, `start`, `stop`, `uninstall` (giữ cấu hình/dữ liệu), `console` (chạy foreground để gỡ lỗi), và các lệnh CLI `init`, `seed`, `import`, `backfill`, `discover`, `openapi` (mặc định dùng cấu hình trong ProgramData). Biến môi trường như `MILESTONE_USERNAME`/`MILESTONE_PASSWORD` phải đặt ở mức Machine rồi restart service. Exe không tự mở Windows Firewall.

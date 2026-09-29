@@ -56,11 +56,27 @@ def log_config():
             'root': {'handlers': ['file'], 'level': 'INFO'}}
 
 
+def wait_for_app(config, timeout=300, interval=5):
+    """PostgreSQL crash recovery after an unclean shutdown can take a while on a slow disk; retry the
+    connection here instead of crashing once and leaving it to the service's failure-action restarts."""
+    from .api import create_app
+    deadline = time.time() + timeout
+    attempt = 0
+    while True:
+        try:
+            return create_app(config)
+        except Exception as exc:
+            attempt += 1
+            if time.time() >= deadline:
+                raise
+            logging.warning('Backend not ready (attempt %d): %s; retrying in %ds', attempt, exc, interval)
+            time.sleep(interval)
+
+
 def build_server(config_path, log=None):
     import uvicorn
-    from .api import create_app
     config = json.loads(Path(config_path).read_text(encoding='utf8'))
-    app = create_app(config)
+    app = wait_for_app(config)
     options = {'log_config': None} if log is None else {}
     return uvicorn.Server(uvicorn.Config(app, host=config.get('host', '127.0.0.1'), port=config.get('port', 8765),
                                          workers=1, **options))
@@ -193,7 +209,10 @@ def open_firewall(config):
     print(f'Firewall: TCP {port} open to the local subnet.')
 
 
-def postgres_dependencies(scm, config):
+def local_postgres_services(scm, config):
+    """Informational only: naming a Windows service dependency proved unreliable (SCM's start-wait can time out
+    on a slow crash-recovery while the database process keeps running fine, leaving the service marked Stopped
+    even though it is not). The backend instead retries its own connection at startup; see wait_for_app."""
     import win32service
     database = str(config.get('database', ''))
     if not database.startswith(('postgresql:', 'postgres:')) or not any(h in database for h in ('@localhost', '@127.0.0.1', '@[::1]')):
@@ -287,17 +306,20 @@ def install(args):
             shutil.copyfile(sys.executable, target)
             print(f'Executable installed: {target}')
         command = f'"{target}" run-service'
-        dependencies = postgres_dependencies(scm, config) or None
+        # No SCM-level dependency: on a slow crash-recovery, SCM's dependency-start wait can time out and mark
+        # PostgreSQL Stopped while the process keeps running, which then makes OUR start fail too (error 1068).
+        # The backend instead retries its own database connection at startup (see wait_for_app).
+        found = local_postgres_services(scm, config)
         handle = open_service(scm)
         if handle is None:
             handle = win32service.CreateService(
                 scm, SERVICE_NAME, DISPLAY_NAME, win32service.SERVICE_ALL_ACCESS, win32service.SERVICE_WIN32_OWN_PROCESS,
-                win32service.SERVICE_AUTO_START, win32service.SERVICE_ERROR_NORMAL, command, None, 0, dependencies, None, None)
+                win32service.SERVICE_AUTO_START, win32service.SERVICE_ERROR_NORMAL, command, None, 0, None, None, None)
             print(f'Service created: {SERVICE_NAME}')
         else:
             win32service.ChangeServiceConfig(
                 handle, win32service.SERVICE_WIN32_OWN_PROCESS, win32service.SERVICE_AUTO_START,
-                win32service.SERVICE_ERROR_NORMAL, command, None, 0, dependencies or [], None, None, DISPLAY_NAME)
+                win32service.SERVICE_ERROR_NORMAL, command, None, 0, [], None, None, DISPLAY_NAME)
             print(f'Service updated: {SERVICE_NAME}')
         try:
             win32service.ChangeServiceConfig2(handle, win32service.SERVICE_CONFIG_DESCRIPTION, DESCRIPTION)
@@ -307,8 +329,8 @@ def install(args):
                             (win32service.SC_ACTION_RESTART, 60000)]})
         finally:
             win32service.CloseServiceHandle(handle)
-        if dependencies:
-            print('Starts after: ' + ', '.join(dependencies))
+        if found:
+            print('PostgreSQL cùng máy: ' + ', '.join(found) + '. Backend tự thử kết nối lại nếu chưa sẵn sàng, không đợi Windows.')
         share_collector_token(config)
         open_firewall(config)
         start(scm)
