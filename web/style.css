@@ -40,14 +40,15 @@ pre{white-space:pre-wrap;word-break:break-word;background:#0a1120;border:1px sol
 .login-card{background:linear-gradient(180deg,var(--surface-strong),var(--surface-solid));border:1px solid var(--line);border-radius:16px;padding:38px;width:min(440px,100%);box-shadow:var(--shadow);position:relative;overflow:hidden}
 .login-card::before{content:"";position:absolute;inset:-40% -20% auto auto;width:220px;height:220px;background:var(--grad);filter:blur(70px);opacity:.35;pointer-events:none}
 .login-card input{width:100%}.login-card .primary{width:100%;margin-top:18px;padding:12px}
-.brand-mark{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:12px;background:var(--grad);font-family:Consolas,monospace;font-weight:800;font-size:14px;color:#fff;margin-bottom:20px;box-shadow:0 8px 24px rgba(79,140,255,.35)}
+.brand-mark{display:block;height:40px;width:auto;margin-bottom:20px;filter:drop-shadow(0 8px 20px rgba(255,124,32,.28))}
 #login-error{color:var(--red)}
 .login-card h1{font-size:26px}
+.powered-by{display:block;height:26px;width:auto;margin:26px auto 0;opacity:.85}
 
 /* header */
 header{background:rgba(8,12,20,.7);backdrop-filter:blur(10px);border-bottom:1px solid var(--line);color:#fff;display:flex;align-items:center;gap:16px;padding:12px 22px;position:sticky;top:0;z-index:5}
 .wordmark{display:flex;gap:10px;align-items:center;font-weight:700}
-.wordmark b{font-family:Consolas,monospace;color:#fff;background:var(--grad);width:30px;height:30px;border-radius:9px;display:inline-grid;place-items:center;font-size:11px}
+.wordmark img{height:24px;width:auto}
 .data-status{font-size:12px;color:var(--muted);flex:1}
 .user-tools{display:flex;gap:8px;align-items:center}.user-tools button{background:transparent;color:#fff;border-color:var(--line)}
 .user-tools button:hover{background:rgba(255,255,255,.08)}
