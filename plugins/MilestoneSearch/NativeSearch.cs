@@ -425,7 +425,7 @@ namespace MilestoneSearch
             time.Children.Add(new TextBlock { Text = occurred.ToString("dd/MM", CultureInfo.InvariantCulture), Foreground = Theme.B(Theme.Muted), FontSize = 10 });
             DockPanel.SetDock(time, Dock.Left); row.Children.Add(time);
 
-            bool hasImage = (bool?)item["has_image"] == true || item["episode"]?["image"] != null;
+            bool hasImage = (bool?)item["has_image"] == true || (bool?)item["episode"]?["image"] == true;
             if (hasImage)
             {
                 var img = new System.Windows.Controls.Image { Width = 52, Height = 52, Stretch = Stretch.UniformToFill, Margin = new Thickness(0, 0, 12, 0) };
@@ -494,7 +494,7 @@ namespace MilestoneSearch
             string title = Labels.Event((string)item["event_label"] ?? (string)item["event_name"] ?? (string)item["message"]) ?? (string)item["event_type"];
             detailBody.Children.Add(new TextBlock { Text = title, Foreground = Theme.B(Theme.Ink), FontSize = 19, FontWeight = FontWeights.Bold, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12) });
 
-            bool hasImage = (bool?)item["has_image"] == true || item["episode"]?["image"] != null;
+            bool hasImage = (bool?)item["has_image"] == true || (bool?)item["episode"]?["image"] == true;
             if (hasImage)
             {
                 var img = new System.Windows.Controls.Image { Stretch = Stretch.UniformToFill, Height = 220, Margin = new Thickness(0, 0, 0, 12) };

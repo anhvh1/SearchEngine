@@ -28,6 +28,14 @@ namespace MilestoneSearch
                 if(alarm.ReferenceList!=null) payload["references"]=JToken.FromObject(alarm.ReferenceList,serializer);
                 payload["category"]=alarm.CategoryName;
                 payload["assignedTo"]=alarm.AssignedTo;
+                // i-PRO Active Guard can attach the detected face/plate snapshot straight to the alarm (Management
+                // Client: "Notification to VMS Server" - "Image on Alarm Manager"); without this the search index
+                // never sees a photo for alarms even when Milestone's own Alarm Manager clearly shows one.
+                byte[] snapshot=null;
+                if(alarm.SnapshotList!=null)
+                    foreach(var shot in alarm.SnapshotList)
+                        if(shot?.Image!=null && shot.Image.Length>0){snapshot=shot.Image;break;}
+                if(snapshot!=null) payload["Snapshot"]=new JObject {["Image"]=Convert.ToBase64String(snapshot)};
             }
             else if(ev!=null)
             {

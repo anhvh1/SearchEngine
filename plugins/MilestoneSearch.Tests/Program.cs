@@ -57,6 +57,20 @@ namespace MilestoneSearch.Tests
             // Installed SDK normalizes Timestamp in its setter; mapper must preserve that UTC instant.
             var normalized=EnvelopeMapper.Map(alarm,"lab");
             Check((string)normalized["occurred_at"]==alarm.EventHeader.Timestamp.ToUniversalTime().ToString("o"),"Must preserve SDK timestamp semantics");
+
+            // i-PRO Active Guard can attach the detected face/plate photo straight to the Alarm's SnapshotList
+            // (Management Client: "Notification to VMS Server" -> "Image on Alarm Manager"); the mapper must lift
+            // it into payload.Snapshot.Image so the backend's pop_images() picks it up, or search never shows a
+            // photo for alarms even when Milestone's own Alarm Manager clearly has one (regression: reported live).
+            var withSnapshot = new Alarm {EventHeader = new EventHeader {ID=Guid.NewGuid(), Timestamp=DateTime.UtcNow,
+                Type="Analytics", Message="FACEME.REGISTERED", Source=new EventSource {FQID=new FQID {ObjectId=source}, Name="Gate"}}};
+            var bytes = new byte[]{1,2,3,4,5};
+            withSnapshot.SnapshotList = new SnapshotList();
+            withSnapshot.SnapshotList.Add(new Snapshot{Image=null});
+            withSnapshot.SnapshotList.Add(new Snapshot{Image=bytes});
+            var mappedWithSnapshot = EnvelopeMapper.Map(withSnapshot,"lab");
+            Check((string)mappedWithSnapshot["payload"]["Snapshot"]["Image"] == Convert.ToBase64String(bytes),
+                "Must lift the alarm's snapshot image into payload.Snapshot.Image, skipping empty entries");
         }
     }
 }
