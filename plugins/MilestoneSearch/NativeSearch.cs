@@ -199,8 +199,36 @@ namespace MilestoneSearch
     public sealed class SearchViewControl : ViewItemWpfUserControl
     {
         private NativeSearchPanel panel;
-        public override void Init() { panel = new NativeSearchPanel(); Content = panel; panel.Start(); }
+        public override void Init()
+        {
+            try
+            {
+                panel = new NativeSearchPanel();
+                Content = panel;
+                panel.Start();
+            }
+            catch (Exception ex)
+            {
+                // Without this, any construction failure (e.g. a missing NAudio DLL in the install folder) is
+                // swallowed by Smart Client and the tab just looks empty, with nothing to diagnose from.
+                PluginLog.Error(ex);
+                Content = ErrorPanel(ex);
+            }
+        }
         public override void Close() { panel?.Dispose(); panel = null; }
+
+        private static FrameworkElement ErrorPanel(Exception ex)
+        {
+            var box = new TextBox
+            {
+                Text = "AI Search failed to load:\n\n" + ex + "\n\nCollector log: %ProgramData%\\MilestoneSearch\\logs\\collector.log",
+                IsReadOnly = true, TextWrapping = TextWrapping.Wrap, AcceptsReturn = true,
+                Background = new SolidColorBrush(Color.FromRgb(0x08, 0x0c, 0x14)), Foreground = Brushes.White,
+                BorderThickness = new Thickness(0), FontFamily = new FontFamily("Consolas"), FontSize = 12, Padding = new Thickness(20),
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            };
+            return box;
+        }
     }
 
     internal sealed class NativeSearchPanel : Grid, IDisposable
