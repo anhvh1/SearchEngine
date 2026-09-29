@@ -37,6 +37,7 @@ class Server:
     """Just enough of the Active Guard WebAPI for the connector."""
     def __init__(self):
         self.calls, self.sessions, self.shots = [], {}, {}
+        self.offered = ['face', 'people', 'vehicle', 'lpr']
         self.cameras = [{'camera_id': 'cam-a', 'camera_ip': '10.0.0.62', 'camera_model': 'WV-X', 'camera_name': 'Cổng chính',
                          'ai_capability': ['face', 'people', 'vehicle'], 'is_enabled': 'yes'},
                         {'camera_id': 'cam-off', 'camera_ip': '10.0.0.9', 'camera_model': 'WV-Y', 'camera_name': 'Tắt',
@@ -52,7 +53,8 @@ class Server:
             return httpx.Response(401, headers={'WWW-Authenticate': 'Digest realm="ai", nonce="n0nce", qop="auth", opaque="op", algorithm=MD5'})
         ok = lambda body: httpx.Response(200, json={'status_body': {'status': True, 'details': [{'srv_id': '9999', 'code': '00000', 'message': 'OK'}]}, 'result_body': body})
         if path == '/ai/system/info':
-            return ok({'multi_ai_soft_version': '2.00'})
+            return ok({'multi_ai_soft_version': '2.00', 'bestshot_type_list': [
+                {'section': s, 'server_type': 'local', 'search_item': ['date&time', 'cameras']} for s in self.offered]})
         if path == '/ai/v1.0/cameras/info':
             return ok({'system_type_list': [{'system_type': 'multi-AI', 'srv_id_list': [{'srv_id': '9999', 'cameras': self.cameras}]}]})
         if path == '/ai/v1.0/thumbnail/search':
@@ -64,7 +66,7 @@ class Server:
             session = f'session-{len(self.sessions)}'
             self.sessions[session] = [{'shot_date_time': self.shots[k]['when'], 'camera_id': self.shots[k]['camera'], 'system_type': 'multi-AI',
                                        'srv_id': '9999', 'source_type': kind, 'thumbnail_key': k,
-                                       **({'degree_of_similarity': '88'} if kind == 'face' else {})} for k in hits]
+                                       **({'degree_of_similarity': '88' if 'search_thumbnail_1' in body['section_face'] else '0'} if kind == 'face' else {})} for k in hits]
             self.last_search = body
             return ok({'search_session_id': session})
         if path.startswith('/ai/v1.0/thumbnail/search/'):
@@ -185,3 +187,22 @@ def test_console_connects_syncs_and_searches_by_face_photo(tmp_path):
         status = c.get('/api/settings/activeguard', headers=h).json()
         assert status['imported'] >= 3 and status['last_error'] is None
         assert c.get('/api/capabilities', headers=h).json()['activeguard']
+
+
+def test_server_that_only_offers_face_best_shots(tmp_path):
+    """Active Guard 3.0.3.1 without the People/Vehicle extensions: every face is imported, nothing else is requested."""
+    server = people_server()
+    server.offered = ['face']
+    server.add('f2', 'face', 'cam-a', 3, {'recommended_size': [{'recommended': 'yes'}], 'likelihood': 0.42})
+    engine, ag, settings = engine_and_client(tmp_path, server)
+    done = activeguard.sync(engine, ag, settings)
+    assert done == {'face': 2}
+    assert 'section_face' in server.last_search and not any(k in server.last_search for k in ('section_people', 'section_vehicle'))
+    while engine.process_pending():
+        pass
+    found = engine.search('', ALL, event_type='activeguard:face')
+    assert found['total'] == 2
+    text = {i['description'] for i in found['items']}
+    assert 'Khuôn mặt (độ tin cậy 42%)' in text and 'Khuôn mặt' in text and not any('giống' in t for t in text)
+    meaning = interpret('khuôn mặt hôm nay', engine.sources(ALL))
+    assert engine.search('', ALL, **{k: v for k, v in meaning['filters'].items() if v is not None})['total'] == 2

@@ -22,7 +22,7 @@ EVENTS = [
      'Mất kết nối', r'not responding|disconnected|communication error', None),
     (('ket noi lai', 'co ket noi', 'phuc hoi ket noi', 'online', 'da phan hoi'), 'Kết nối lại', r'^(server )?responding$', None),
     (('xam nhap', 'dot nhap', 'intruder', 'intrusion', 'vuot rao'), 'Xâm nhập', r'intru|xam nhap', None),
-    (('khuon mat', 'nhan dien', 'guong mat', 'face'), 'Nhận diện khuôn mặt', r'face', None),
+    (('khuon mat', 'nhan dien', 'guong mat', 'face'), 'Nhận diện khuôn mặt', r'face|khuon mat', None),
     (('bien so', 'lpr', 'license plate'), 'Biển số', r'licen|plate|lpr|bien so', None),
     (('xe', 'phuong tien', 'vehicle', 'o to'), 'Phương tiện', r'vehicle|xe |bien so|licen|plate', None),
     (('o cung', 'day o', 'het dung luong', 'xoa ban ghi', 'luu tru', 'dung luong'), 'Lưu trữ', r'recording|disk|storage|database|archive', None),

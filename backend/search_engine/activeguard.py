@@ -177,12 +177,12 @@ class ActiveGuard:
 def load_settings(engine, config):
     saved = engine.checkpoint(CHECKPOINT)
     merged = {**(config.get('activeguard') or {}), **(json.loads(saved) if saved else {})}
-    merged.setdefault('site_id', 'main')
+    merged.setdefault('site_id', 'activeguard')   # its cameras belong to the VMS Active Guard is registered to, which may not be ours
     merged.setdefault('min_score', 0.5)
     merged.setdefault('lookback_hours', 24)
     merged.setdefault('max_per_cycle', 300)
     merged.setdefault('interval_seconds', 60)
-    merged.setdefault('types', ['people', 'vehicle', 'lpr'])
+    merged.setdefault('types', ['face', 'people', 'vehicle', 'lpr'])   # only those the server and cameras actually offer are read
     merged.setdefault('verify_certificates', False)
     return merged
 
@@ -242,8 +242,15 @@ def envelope(kind, hit, info, camera, settings):
     key = hit['thumbnail_key']
     attrs = attributes_from(kind, info, float(settings['min_score']))
     text = describe(kind, attrs)
-    if kind == 'face' and hit.get('degree_of_similarity') not in (None, ''):
-        text += f" (giống {hit['degree_of_similarity']}%)"
+    if kind == 'face':
+        try:
+            score = float(hit.get('degree_of_similarity') or 0)
+        except ValueError:
+            score = 0.0
+        if score > 0:                     # only photo searches carry a similarity
+            text += f' (giống {score:.0f}%)'
+        elif isinstance(info.get('likelihood'), (int, float)):
+            text += f" (độ tin cậy {float(info['likelihood']) * 100:.0f}%)"
     when = to_utc_iso(hit['shot_date_time'])
     name = camera['name'] if camera else str(hit.get('camera_id'))
     payload = {'header': {'ID': key, 'Name': TITLES[kind], 'Message': text, 'Type': f'activeguard:{kind}', 'Source': {'Name': name}},
@@ -272,8 +279,11 @@ def sync(engine, ag, settings, now=None):
     """Import new best shots since the last cursor; returns {type: count}. Safe to repeat: keys are idempotent."""
     now = now or datetime.now(timezone.utc)
     cameras = {c['camera_id']: c for c in ag.cameras() if c['enabled']}
+    offered = {b.get('section') for b in ag.system_info().get('bestshot_type_list', []) if isinstance(b, dict)}
     done, budget = {}, int(settings['max_per_cycle'])
     for kind in settings['types']:
+        if offered and kind not in offered:
+            continue        # e.g. people/vehicle best shots need the AI People/Vehicle extension on the cameras
         eligible = [c for c in cameras.values() if kind in c['capability']]
         if not eligible or budget <= 0:
             continue
