@@ -74,7 +74,8 @@ class Server:
             first, count = int(request.url.params.get('result-from', 1)), int(request.url.params.get('result-count', len(rows)))
             if first < 1 or count < 1:   # the real server rejects these with C0005
                 return httpx.Response(200, json={'status_body': {'status': False, 'details': [{'code': 'C0005', 'message': f'Validation Error [ResultFrom]=[{first}]'}]}})
-            return ok({'search_session_id': 'x', 'result_count': len(rows), 'search_result': rows[first - 1:first - 1 + count]})
+            count_value = str(len(rows)) if getattr(self, 'result_count_as_string', False) else len(rows)
+            return ok({'search_session_id': 'x', 'result_count': count_value, 'search_result': rows[first - 1:first - 1 + count]})
         if path == '/ai/v1.0/thumbnail':
             key = request.url.params['thumbnail-key']
             return ok({'thumbnail_image': JPEG, **self.shots[key]['info']})
@@ -267,3 +268,16 @@ def test_long_filename_style_thumbnail_key_does_not_break_ingest(tmp_path):
     assert engine.search('', ALL, event_type='activeguard:face')['total'] == 1
     # re-syncing must still recognise it as already imported (stable, hashed guid)
     assert activeguard.sync(engine, ag, {**settings, 'types': ['face']}) == {'face': 0}
+
+
+def test_string_result_count_does_not_break_paging(tmp_path):
+    """Some Active Guard servers return result_count as a string ("30") rather than a number; comparing it to
+    the integer offset then raises TypeError and the sync silently fails (regression: servers .3 and .11)."""
+    server = Server()
+    server.offered = ['face']
+    server.result_count_as_string = True
+    for i in range(3):
+        server.add(f'f{i}', 'face', 'cam-a', i, {'recommended_size': [{'recommended': 'yes'}]})
+    engine, ag, settings = engine_and_client(tmp_path, server)
+    done = activeguard.sync(engine, ag, {**settings, 'types': ['face']})
+    assert done == {'face': 3}
