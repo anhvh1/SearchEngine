@@ -84,9 +84,7 @@ def create_app(config, transport=None):
                 except Exception:
                     logging.exception('Rule learning failed')
             try:
-                sites = await asyncio.to_thread(lambda: {s: config.get('milestone', {}).get(s, {}) for s in milestone.site_ids()
-                                                         if milestone.settings(s).get('url')})
-                await asyncio.to_thread(schedule, engine, config, time.time(), sites)
+                await asyncio.to_thread(schedule, engine, config, time.time())
                 await asyncio.to_thread(process_reconciliation, engine, milestone)
             except Exception:
                 logging.exception('Reconciliation worker failed')

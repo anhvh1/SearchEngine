@@ -28,7 +28,8 @@ namespace MilestoneSearch
             string folder=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),"MilestoneSearch","outbox");
             outbox=new Outbox(folder,256*1024*1024);
             receivers.Add(EnvironmentManager.Instance.RegisterReceiver(ConfigurationChanged,new MessageIdFilter(MessageId.Server.ConfigurationChangedIndication)));
-            receivers.Add(EnvironmentManager.Instance.RegisterReceiver(Notification,new MessageIdFilter(MessageId.Server.NewEventIndication)));
+            // Events are dropped: every alarm is raised from an underlying event with its own id, so keeping
+            // both ingests the same occurrence twice under different source_guids.
             receivers.Add(EnvironmentManager.Instance.RegisterReceiver(Notification,new MessageIdFilter(MessageId.Server.NewAlarmIndication)));
             receivers.Add(EnvironmentManager.Instance.RegisterReceiver(AlarmChanged,new MessageIdFilter(MessageId.Server.ChangedAlarmIndication)));
             ReloadSettings("startup");
@@ -44,7 +45,7 @@ namespace MilestoneSearch
             {
                 var next=PluginSettings.Load();next.Validate();outbox.SetQuota(next.OutboxBytes);settings=next;
                 PluginLog.Info("Collector settings loaded: site="+next.SiteId+", enabled="+next.Enabled+", backend="+next.BackendUrl+", reason="+reason);
-                if(next.Enabled)outbox.Enqueue(new JObject { ["route"]="collector/reconcile",["data"]=new JObject {["site_id"]=next.SiteId,["reason"]=reason}}.ToString());
+                // Alarms arrive by direct push only now; no Milestone REST reconciliation to trigger here.
             }
             catch(Exception ex){Log(ex);}
         }
@@ -74,9 +75,8 @@ namespace MilestoneSearch
                     }
                     catch(Exception ex)
                     {
+                        // No REST fallback: this update is dropped and the next full alarm push will supersede it.
                         Log(ex);
-                        outbox.Enqueue(new JObject {["route"]="collector/reconcile",["data"]=new JObject {
-                            ["site_id"]=current.SiteId,["reason"]="alarm_changed",["alarm_id"]=alarmId.ToString()}}.ToString());
                     }
                 });
             }
