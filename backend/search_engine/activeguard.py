@@ -286,6 +286,14 @@ def describe_settings(engine, config):
 
 
 # ---------------- import ----------------
+def guid(settings, thumbnail_key):
+    """Envelope.source_guid is capped at 128 chars; some servers' thumbnail_key is a long filename, not a short
+    opaque id, so hash it to a fixed length instead of concatenating raw. Still stable across syncs (dedup)."""
+    import hashlib
+    digest = hashlib.sha256(f"{settings['id']}|{thumbnail_key}".encode()).hexdigest()[:32]
+    return f'ag-{digest}'
+
+
 def envelope(kind, hit, info, camera, settings):
     key = hit['thumbnail_key']
     attrs = attributes_from(kind, info, float(settings['min_score']))
@@ -307,7 +315,7 @@ def envelope(kind, hit, info, camera, settings):
                'scores': {k: v for k, v in info.items() if k in PEOPLE_GROUPS or k in ('vehicle_type', 'vehicle_color')}}
     if info.get('thumbnail_image'):
         payload['Snapshot'] = {'Image': info['thumbnail_image']}
-    return {'site_id': settings['site_id'], 'kind': 'event', 'source_guid': f"ag-{settings['id']}-{key}", 'source_id': str(hit.get('camera_id') or 'unknown'),
+    return {'site_id': settings['site_id'], 'kind': 'event', 'source_guid': guid(settings, key), 'source_id': str(hit.get('camera_id') or 'unknown'),
             'event_type': f'activeguard:{kind}', 'occurred_at': when, 'updated_at': when, 'message': text, 'description': text,
             'camera_id': str(hit.get('camera_id') or '') or None, 'payload': payload}
 
@@ -315,7 +323,7 @@ def envelope(kind, hit, info, camera, settings):
 def import_hit(engine, ag, kind, hit, cameras, settings):
     """Fetch one best shot with its attribute scores and ingest it; returns the record key."""
     from .store import record_key
-    key = record_key(settings['site_id'], 'event', f"ag-{settings['id']}-{hit['thumbnail_key']}")
+    key = record_key(settings['site_id'], 'event', guid(settings, hit['thumbnail_key']))
     if engine.has_key(key):
         return key, False
     info = ag.thumbnail(hit['thumbnail_key'], info=True)

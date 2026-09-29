@@ -248,3 +248,22 @@ def test_server_that_only_offers_face_best_shots(tmp_path):
     assert 'Khuôn mặt (độ tin cậy 42%)' in text and 'Khuôn mặt' in text and not any('giống' in t for t in text)
     meaning = interpret('khuôn mặt hôm nay', engine.sources(ALL))
     assert engine.search('', ALL, **{k: v for k, v in meaning['filters'].items() if v is not None})['total'] == 2
+
+
+def test_long_filename_style_thumbnail_key_does_not_break_ingest(tmp_path):
+    """Some Active Guard servers return a long filename as thumbnail_key (not a short opaque id); source_guid
+    is capped at 128 chars, so it must be hashed rather than concatenated raw (regression: server .3)."""
+    server = Server()
+    server.offered = ['face']
+    long_key = 'SearchThumbnail' + 'A' * 90 + '1F1883FD42DC52A9315.jpg'
+    assert len(long_key) > 100
+    server.add(long_key, 'face', 'cam-a', 0, {'recommended_size': [{'recommended': 'yes'}]})
+    engine, ag, settings = engine_and_client(tmp_path, server)
+    settings = {**settings, 'id': 'a-fairly-long-hostname.example.local'}
+    done = activeguard.sync(engine, ag, {**settings, 'types': ['face']})
+    assert done == {'face': 1}
+    while engine.process_pending():
+        pass
+    assert engine.search('', ALL, event_type='activeguard:face')['total'] == 1
+    # re-syncing must still recognise it as already imported (stable, hashed guid)
+    assert activeguard.sync(engine, ag, {**settings, 'types': ['face']}) == {'face': 0}
