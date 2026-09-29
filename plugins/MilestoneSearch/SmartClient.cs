@@ -16,11 +16,23 @@ namespace MilestoneSearch
     public sealed class ConsolePanel:UserControl
     {
         private readonly WebView2 browser=new WebView2 {Dock=DockStyle.Fill};
-        private readonly Label status=new Label {Dock=DockStyle.Top,AutoSize=true};
+        // Smart Client's own theme is dark; default label colors would render invisible text on this background,
+        // which is why past failures here looked like a blank tab instead of a readable error.
+        private readonly Label status=new Label {Dock=DockStyle.Top,AutoSize=false,Height=28,TextAlign=System.Drawing.ContentAlignment.MiddleLeft,
+            Padding=new Padding(10,0,10,0),ForeColor=Color.White,BackColor=Color.FromArgb(0x7a,0x1f,0x1f),Font=new Font("Segoe UI",9F,FontStyle.Bold),Visible=false};
         private readonly string tab;
         private string allowedOrigin;
         private VideoOS.Platform.Login.LoginSettings login;
-        public ConsolePanel(string tab="search") {this.tab=tab;Controls.Add(browser);Controls.Add(status);}
+        public ConsolePanel(string tab="search") {this.tab=tab;BackColor=Color.FromArgb(0x08,0x0c,0x14);Controls.Add(browser);Controls.Add(status);}
+        private void Fail(string message,Exception exception=null)
+        {
+            status.BackColor=Color.FromArgb(0x7a,0x1f,0x1f); status.Text=message; status.Visible=true;
+            if(exception!=null)PluginLog.Error(exception); else PluginLog.Info("Search console: "+message);
+        }
+        private void Info(string message)
+        {
+            status.BackColor=Color.FromArgb(0x14,0x1d,0x2e); status.Text=message; status.Visible=true;
+        }
         public async void Navigate(string url)
         {
             try
@@ -39,7 +51,18 @@ namespace MilestoneSearch
                         if(!Uri.TryCreate(args.Uri,UriKind.Absolute,out var target) || target.GetLeftPart(UriPartial.Authority)!=allowedOrigin) args.Cancel=true;
                     };
                     browser.CoreWebView2.NewWindowRequested+=(sender,args)=>args.Handled=true;
-                    browser.CoreWebView2.NavigationCompleted+=(sender,args)=>{if(args.IsSuccess)SendIdentity();};
+                    browser.CoreWebView2.NavigationCompleted+=(sender,args)=>{
+                        if(args.IsSuccess){status.Visible=false;SendIdentity();return;}
+                        // WebView2's own network-error interstitial would otherwise render as a near-invisible sliver
+                        // on top of Smart Client's dark background; replace it with a readable page of our own.
+                        string message=$"Không kết nối được máy chủ backend tại {allowedOrigin}. Kiểm tra địa chỉ (kèm cổng, mặc định :8765) trong Management Client, và máy chủ backend đang chạy. Mã lỗi: {args.WebErrorStatus}.";
+                        Fail(message);
+                        browser.CoreWebView2.NavigateToString(
+                            "<body style=\"margin:0;height:100vh;display:flex;align-items:center;justify-content:center;background:#080c14;"+
+                            "color:#eef3fb;font:15px 'Segoe UI',Arial,sans-serif;text-align:center;padding:32px\"><div style=\"max-width:420px\">"+
+                            "<div style=\"font-size:12px;letter-spacing:2px;font-weight:700;color:#ff5f6d;margin-bottom:10px\">KHÔNG KẾT NỐI ĐƯỢC</div>"+
+                            "<div>"+System.Net.WebUtility.HtmlEncode(message)+"</div></div></body>");
+                    };
                     login=VideoOS.Platform.Login.LoginSettingsCache.GetLoginSettings(EnvironmentManager.Instance.MasterSite);
                     if(login!=null)login.TokenChangedEvent+=OnTokenChanged;
                     browser.CoreWebView2.WebMessageReceived+=(sender,args)=>{
@@ -56,17 +79,17 @@ namespace MilestoneSearch
                                 MessageId.SmartClient.ShowCamerasInFloatingWindowCommand,
                                 new ShowCamerasInFloatingWindowData {Cameras=new[]{camera},Mode=Mode.ClientPlayback,BrowseTime=time.UtcDateTime}));
                         }
-                        catch(Exception ex){status.Text="Playback: "+ex.Message;}
+                        catch(Exception ex){Fail("Playback: "+ex.Message,ex);}
                     };
                     browser.CoreWebView2.PermissionRequested+=(sender,args)=>{
                         // Microphone remains an explicit user decision; all other device permissions are denied.
                         if(args.PermissionKind!=CoreWebView2PermissionKind.Microphone)args.State=CoreWebView2PermissionState.Deny;
                     };
                 }
+                Info($"Đang kết nối tới {allowedOrigin}…");
                 browser.Source=new Uri(url.TrimEnd('/')+"/?tab="+tab);
-                status.Text="";
             }
-            catch(Exception ex){status.Text="Search console unavailable: "+ex.Message;}
+            catch(Exception ex){Fail("Search console unavailable: "+ex.Message,ex);}
         }
         private void OnTokenChanged(object sender,EventArgs args)
         {
@@ -124,7 +147,16 @@ namespace MilestoneSearch
         {
             panel=new ConsolePanel {Dock=DockStyle.Fill};
             Content=new System.Windows.Forms.Integration.WindowsFormsHost {Child=panel};
-            try{panel.Navigate(PluginSettings.Load().BackendUrl);}catch(Exception ex){Content=new System.Windows.Controls.TextBlock {Text=ex.Message};}
+            try{panel.Navigate(PluginSettings.Load().BackendUrl);}
+            catch(Exception ex)
+            {
+                PluginLog.Error(ex);
+                // Default TextBlock color is black; against Smart Client's dark background that is invisible,
+                // which is exactly why a configuration error here used to look like an empty tab.
+                Content=new System.Windows.Controls.TextBlock {Text="Search console unavailable: "+ex.Message,
+                    Foreground=System.Windows.Media.Brushes.White,Background=new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x08,0x0c,0x14)),
+                    Padding=new System.Windows.Thickness(16),TextWrapping=System.Windows.TextWrapping.Wrap,FontWeight=System.Windows.FontWeights.SemiBold};
+            }
         }
         public override void Close(){panel?.Dispose();panel=null;}
     }
