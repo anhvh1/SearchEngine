@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 using VideoOS.Platform;
 using VideoOS.Platform.Background;
+using VideoOS.Platform.Data;
 using VideoOS.Platform.Messaging;
 
 namespace MilestoneSearch
@@ -53,8 +54,40 @@ namespace MilestoneSearch
         {
             var current=settings;
             if(current==null || !current.Enabled) return null;
-            try {var envelope=EnvelopeMapper.Map(message.Data,current.SiteId);outbox.Enqueue(new JObject {["route"]="ingest",["data"]=envelope}.ToString());PluginLog.Info("Notification queued: kind="+(string)envelope["kind"]+", source_guid="+(string)envelope["source_guid"]+", event_type="+(string)envelope["event_type"]);}
-            catch(Exception ex){Log(ex);} return null;
+            var data=message.Data;
+            Task.Run(async()=>{
+                try
+                {
+                    if(data is Alarm alarm) await AttachSnapshots(alarm);
+                    var envelope=EnvelopeMapper.Map(data,current.SiteId);
+                    outbox.Enqueue(new JObject {["route"]="ingest",["data"]=envelope}.ToString());
+                    PluginLog.Info("Notification queued: kind="+(string)envelope["kind"]+", source_guid="+(string)envelope["source_guid"]+", event_type="+(string)envelope["event_type"]+", snapshot="+(envelope["payload"]?["Snapshot"]!=null));
+                }
+                catch(Exception ex){Log(ex);}
+            });
+            return null;
+        }
+        // The pushed alarm never carries snapshot bytes: Milestone keeps them apart (IAlarmClient.GetSnapshots), and
+        // i-PRO Active Guard attaches its face/plate photo (AttachSnapshot) moments after raising the alarm, so poll briefly.
+        private async Task AttachSnapshots(Alarm alarm)
+        {
+            if(HasImage(alarm.SnapshotList)) return;
+            var client=alarms.GetAlarmClient(EnvironmentManager.Instance.MasterSite.ServerId);
+            SnapshotList shots=null;
+            foreach(int wait in new[]{0,2000,5000})
+            {
+                if(wait>0) await Task.Delay(wait);
+                try{shots=client.GetSnapshots(alarm.EventHeader.ID);}catch(Exception ex){Log(ex);}
+                if(HasImage(shots)){alarm.SnapshotList=shots;return;}
+            }
+            int count=0;string paths="";
+            if(shots!=null) foreach(var s in shots){count++;if(!string.IsNullOrEmpty(s?.Path))paths+=" "+s.Path;}
+            PluginLog.Info("No snapshot image for alarm "+alarm.EventHeader.ID+" ("+count+" snapshot entries"+(paths.Length>0?", paths:"+paths:"")+")");
+        }
+        private static bool HasImage(SnapshotList list)
+        {
+            if(list!=null) foreach(var s in list) if(s?.Image!=null && s.Image.Length>0) return true;
+            return false;
         }
         private object AlarmChanged(Message message,FQID sender,FQID related)
         {
@@ -67,10 +100,11 @@ namespace MilestoneSearch
                 Guid alarmId=change.AlarmId;
                 DateTime changedAt=DateTime.UtcNow;
                 // Read the current alarm through the Event Server's own session; no REST account is needed.
-                Task.Run(()=>{
+                Task.Run(async()=>{
                     try
                     {
                         var alarm=alarms.GetAlarmClient(EnvironmentManager.Instance.MasterSite.ServerId).Get(alarmId);
+                        await AttachSnapshots(alarm);
                         outbox.Enqueue(new JObject {["route"]="ingest",["data"]=EnvelopeMapper.Map(alarm,current.SiteId,changedAt)}.ToString());
                     }
                     catch(Exception ex)
