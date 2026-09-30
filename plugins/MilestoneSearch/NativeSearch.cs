@@ -426,7 +426,7 @@ namespace MilestoneSearch
                 }
                 int cams = (data["facets"]?["sources"] as JArray)?.Count ?? 0;
                 if (cams > 0) parts.Add($"{(cams >= 8 ? "8+" : cams.ToString())} camera/thiết bị");
-                summary.Text = total > 0 ? string.Join(" · ", parts) : "Không có sự kiện phù hợp. Thử khoảng thời gian rộng hơn hoặc bớt điều kiện.";
+                summary.Text = total > 0 ? string.Join(" · ", parts) : ((string)data["note"] ?? "Không có sự kiện phù hợp. Thử khoảng thời gian rộng hơn hoặc bớt điều kiện.");
                 chips.Children.Clear();
                 foreach (var c in (data["understood"] as JArray) ?? new JArray())
                     chips.Children.Add(Chip((string)c["label"], (string)c["type"] == "time" ? Theme.Amber : Theme.Accent));

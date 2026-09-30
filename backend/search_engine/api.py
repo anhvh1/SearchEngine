@@ -302,10 +302,14 @@ def create_app(config, transport=None):
         if text:
             return {**ask(AskRequest(text=text, tz_offset_minutes=tz_offset_minutes), p), 'described': text}
         if searched:
-            # Active Guard was reached and searched fine; it simply found no similar face. Not an error.
+            # Active Guard was reached and searched fine; it simply found no similar face. Not an error. Active Guard
+            # compares faces only (people/vehicles are "similar" by attributes), so say what would find a full-body photo.
+            note = 'Không có khuôn mặt nào giống ảnh trong 7 ngày gần đây. Active Guard chỉ so sánh ảnh khuôn mặt; '
+            note += (problems[-1] if problems else 'để tìm người theo ảnh toàn thân cần cài model thị giác (ai.vision_model)') \
+                + ', hoặc mô tả bằng lời, ví dụ "nam áo đen quần xanh".'
             return {'total': 0, 'items': [], 'limit': 0, 'offset': 0,
                     'understood': [{'type': 'photo', 'label': 'Khuôn mặt giống ảnh'}], 'ignored_words': None,
-                    'described': None, 'similarity': {}}
+                    'described': None, 'similarity': {}, 'note': note}
         raise HTTPException(503, problems[0] if problems else 'Chưa kết nối Active Guard hoặc cài model thị giác để tìm theo ảnh')
 
     @app.get('/api/records/{key}/image')

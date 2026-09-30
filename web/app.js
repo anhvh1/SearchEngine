@@ -103,7 +103,7 @@ function render(data, more) {
     const cams = data.facets?.sources?.length;
     if (top?.length) parts.push(top.join(', '));
     if (cams) parts.push(`${cams >= 8 ? '8+' : cams} camera/thiết bị`);
-    $('summary').textContent = data.total ? parts.join(' · ') : 'Không có sự kiện phù hợp. Thử khoảng thời gian rộng hơn hoặc bớt điều kiện.';
+    $('summary').textContent = data.total ? parts.join(' · ') : (data.note || 'Không có sự kiện phù hợp. Thử khoảng thời gian rộng hơn hoặc bớt điều kiện.');
     $('chips').replaceChildren(...data.understood.map(c => node('span', c.label, 'chip chip-' + c.type)));
     if (data.described) $('chips').prepend(node('span', `Ảnh: ${data.described}`, 'chip chip-muted'));
     if (data.ignored_words) $('chips').append(node('span', `Bỏ qua “${data.ignored_words}” vì không khớp sự kiện nào`, 'chip chip-muted'));

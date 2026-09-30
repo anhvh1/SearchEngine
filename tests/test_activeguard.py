@@ -201,6 +201,7 @@ def test_photo_search_with_no_matching_face_is_an_empty_result_not_an_error(tmp_
         response = c.post('/api/ask/image', files={'file': ('stranger.jpg', b'\xff\xd8stranger')}, headers=h)
         photo = response.json()
         assert response.status_code == 200 and photo['total'] == 0 and photo['items'] == []
+        assert 'chỉ so sánh ảnh khuôn mặt' in photo['note'] and 'vision_model' in photo['note']
 
 
 def test_three_active_guard_servers_feed_one_index(tmp_path):
