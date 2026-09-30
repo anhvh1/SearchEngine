@@ -16,6 +16,9 @@ dist/
 # Milestone backups and research downloads: real names/faces, very large, third-party copyright
 MilestoneDB/
 research/milestone/pdf/
+research/vision-eval/sample/
+research/vision-eval/results/
+research/vision-eval/models/
 docs/*.docx
 *.bak
 *.mdf
