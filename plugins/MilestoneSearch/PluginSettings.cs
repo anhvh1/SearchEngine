@@ -21,8 +21,11 @@ namespace MilestoneSearch
         public static readonly Guid Kind=new Guid("5f9e7faa-58df-4fbd-8c70-baf645ed4b2f");
         public static readonly Guid Configuration=new Guid("a8bb91f5-ae78-4080-b1c6-559d29793cf5");
         public static readonly Guid Background=new Guid("f5fb99bc-e288-4ae7-8af1-0bc7425e70a4");
-        public static readonly Guid Workspace=new Guid("ab709ea5-9e07-419a-84b3-50e9af6b95b8");
-        public static readonly Guid View=new Guid("43d608f2-24ed-49ca-9e47-54c7e10a8227");
+        // Changed from the original ids: Smart Client persists each user's view-item layout per Workspace/View guid,
+        // and every earlier broken iteration (WebView2 and native) ran under the old ids and could have saved an
+        // empty layout for them. A fresh guid guarantees no stale saved state can shadow Init()'s InsertViewItemPlugin.
+        public static readonly Guid Workspace=new Guid("2b6a8e2f-2d34-4a63-9f1e-7c6a5d3b9a10");
+        public static readonly Guid View=new Guid("9d4c7f31-6e0a-4b8d-8a2c-1f5e3b7d6c94");
     }
     public sealed class PluginSettings
     {
