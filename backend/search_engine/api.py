@@ -277,10 +277,11 @@ def create_app(config, transport=None):
         content = await file.read(8 * 1024 * 1024 + 1)
         if len(content) > 8 * 1024 * 1024:
             raise HTTPException(413, 'Ảnh vượt quá 8 MiB')
-        matches, text, problems = [], None, []
+        matches, text, problems, searched = [], None, [], False
         for ag, settings in await asyncio.to_thread(activeguard.connect_all, engine, config, transport):
             try:
                 matches += await asyncio.to_thread(activeguard.face_photo_search, engine, ag, settings, content)
+                searched = True  # this server was reachable and actually ran the face search, even if it found nothing
             except activeguard.ActiveGuardError as exc:
                 problems.append(f"{settings['id']}: {exc}")
             finally:
@@ -300,6 +301,11 @@ def create_app(config, transport=None):
                     'similarity': {key: score for key, score in matches}}
         if text:
             return {**ask(AskRequest(text=text, tz_offset_minutes=tz_offset_minutes), p), 'described': text}
+        if searched:
+            # Active Guard was reached and searched fine; it simply found no similar face. Not an error.
+            return {'total': 0, 'items': [], 'limit': 0, 'offset': 0,
+                    'understood': [{'type': 'photo', 'label': 'Khuôn mặt giống ảnh'}], 'ignored_words': None,
+                    'described': None, 'similarity': {}}
         raise HTTPException(503, problems[0] if problems else 'Chưa kết nối Active Guard hoặc cài model thị giác để tìm theo ảnh')
 
     @app.get('/api/records/{key}/image')

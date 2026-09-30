@@ -190,6 +190,19 @@ def test_console_connects_syncs_and_searches_by_face_photo(tmp_path):
         assert c.get('/api/capabilities', headers=h).json()['activeguard']
 
 
+def test_photo_search_with_no_matching_face_is_an_empty_result_not_an_error(tmp_path):
+    """A connected server that simply finds no similar face must not look like 'Active Guard isn't connected'."""
+    server = Server()   # face-capable camera, but no face best-shots recorded: a legitimate zero-match search
+    server.add('p1', 'people', 'cam-a', 30, scores(gender='male'))
+    c, h = api(tmp_path, server)
+    with c:
+        c.put('/api/settings/activeguard', headers=h, json={'url': 'http://ag.local:8090', 'username': 'operator', 'password': 'secret'})
+        c.post('/api/activeguard/sync', headers=h)
+        response = c.post('/api/ask/image', files={'file': ('stranger.jpg', b'\xff\xd8stranger')}, headers=h)
+        photo = response.json()
+        assert response.status_code == 200 and photo['total'] == 0 and photo['items'] == []
+
+
 def test_three_active_guard_servers_feed_one_index(tmp_path):
     """Milestone can have several Active Guard servers registered; each keeps its own cursor, errors and records."""
     def face_server(prefix, count, camera):
