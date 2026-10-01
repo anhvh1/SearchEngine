@@ -157,7 +157,7 @@ def embed(config, texts):
 
 
 def semantic_search(engine, request, grants, config):
-    if engine.dialect == 'postgresql':
+    if engine.dialect == 'postgresql' and engine.pgvector:
         vector = embed(config, [request.query])[0]
         return engine.vector_search(vector, config['embedding_model'], grants, request)
     # ACL and exact filters run before any model sees content. Bounded single-node reranking.
@@ -194,7 +194,7 @@ def semantic_search(engine, request, grants, config):
 
 def index_pending(engine, config, limit=32):
     """Compute embeddings outside DB transactions, then verify content has not changed."""
-    if engine.dialect != 'postgresql' or not config.get('embedding_model'):
+    if engine.dialect != 'postgresql' or not engine.pgvector or not config.get('embedding_model'):
         return 0
     model = config['embedding_model']
     with engine.lock:

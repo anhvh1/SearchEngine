@@ -119,9 +119,18 @@ class Engine:
         if self.dialect == 'sqlite':
             self.db.commit()
         self.episode_gap, self.episode_span = 60, 600
+        # pgvector only serves the embedding index; text and voice search do not need it. Without it (e.g. PostgreSQL
+        # on Windows, where pgvector is not bundled) semantic search falls back to re-ranking text-search candidates.
+        self.pgvector = False
         if self.dialect == 'postgresql':
-            self.db.execute('CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA public')
-            self.db.execute('CREATE TABLE IF NOT EXISTS embeddings(key TEXT PRIMARY KEY REFERENCES records(key) ON DELETE CASCADE, model TEXT NOT NULL, content_hash TEXT NOT NULL, embedding public.vector NOT NULL)')
+            try:
+                self.db.execute('CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA public')
+                self.db.execute('CREATE TABLE IF NOT EXISTS embeddings(key TEXT PRIMARY KEY REFERENCES records(key) ON DELETE CASCADE, model TEXT NOT NULL, content_hash TEXT NOT NULL, embedding public.vector NOT NULL)')
+                self.pgvector = True
+            except Exception as exc:
+                import logging
+                logging.warning('PostgreSQL extension "vector" unavailable (%s); semantic index off, text and voice search unaffected',
+                                str(exc).splitlines()[0])
 
     def close(self):
         # Background workers run in threads; wait for the one holding the connection before closing it.
@@ -311,7 +320,7 @@ class Engine:
                 old = self.db.execute('SELECT body FROM records WHERE key=?', (key,)).fetchone()
                 if old is None or embedding_text(json.loads(old['body'])) != embedding_text(result):
                     self.db.execute('DELETE FROM vectors WHERE key=?', (key,))
-                    if self.dialect == 'postgresql':
+                    if self.pgvector:
                         self.db.execute('DELETE FROM embeddings WHERE key=?', (key,))
                 self.db.execute('''INSERT INTO records VALUES(?,?,?,?,?,?,?,?,?)
                     ON CONFLICT(key) DO UPDATE SET site_id=excluded.site_id,source_id=excluded.source_id,
