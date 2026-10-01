@@ -3,18 +3,19 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
-using System.Net.NetworkInformation;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Security.Principal;
+using System.Text;
 using System.Threading.Tasks;
+using Newtonsoft.Json.Linq;
 
 namespace MilestoneSearch
 {
     // The backend's own CA lets browsers open the console over HTTPS (needed for the microphone). It reaches the
     // operator PCs through Milestone's authenticated configuration, never straight from the network: the Event
-    // Server plugin reads it from a backend on the same machine (traffic that cannot be spoofed from the LAN) and
-    // publishes it; the Smart Client plugin installs it into the Windows trusted roots if it is not there yet.
+    // Server plugin fetches it from the backend signed with the collector token and publishes it; the Smart Client
+    // plugin installs it into the Windows trusted roots if it is not there yet.
     public static class TrustedCa
     {
         private const string Property="BackendCa";
@@ -33,22 +34,24 @@ namespace MilestoneSearch
         }
 
         // ---------- Event Server: publish ----------
-        public static async Task Publish(PluginSettings settings)
+        // The backend signs the CA with this collector's token (HMAC), so a machine between the Event Server and a
+        // backend elsewhere on the LAN cannot slip in its own CA even though the connection is plain HTTP.
+        public static async Task Publish(PluginSettings settings,string collectorToken)
         {
-            if(!Uri.TryCreate(settings.BackendUrl,UriKind.Absolute,out var backend)) return;
-            if(!IsThisMachine(backend))
+            if(string.IsNullOrWhiteSpace(collectorToken)) return;
+            JObject body;
+            using(var http=new HttpClient {BaseAddress=new Uri(settings.BackendUrl.TrimEnd('/')+"/"),Timeout=TimeSpan.FromSeconds(15)})
             {
-                PluginLog.Info("Backend CA not published: backend "+backend.Host+" is not on this machine, so its CA cannot be fetched safely.");
-                return;
+                http.DefaultRequestHeaders.Authorization=new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer",collectorToken);
+                using(var response=await http.GetAsync("api/collector/ca").ConfigureAwait(false))
+                {
+                    if(response.StatusCode==HttpStatusCode.NotFound) return;   // HTTPS off, or an administrator-supplied certificate
+                    response.EnsureSuccessStatusCode();
+                    body=JObject.Parse(await response.Content.ReadAsStringAsync().ConfigureAwait(false));
+                }
             }
-            string pem;
-            using(var http=new HttpClient {Timeout=TimeSpan.FromSeconds(15)})
-            using(var response=await http.GetAsync(new Uri(backend,"/ca.crt")).ConfigureAwait(false))
-            {
-                if(response.StatusCode==HttpStatusCode.NotFound) return;   // HTTPS off, or an administrator-supplied certificate
-                response.EnsureSuccessStatusCode();
-                pem=await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-            }
+            string pem=(string)body["pem"];
+            if(!Verify(pem,(string)body["mac"],collectorToken)) throw new CryptographicException("Backend CA signature does not match the collector token; not published.");
             var cert=Parse(pem);
             var item=PluginSettings.Item();
             if(item.Properties.TryGetValue(Property,out var current) && current==pem) return;
@@ -57,13 +60,16 @@ namespace MilestoneSearch
             PluginLog.Info("Backend CA published to Milestone configuration: "+cert.Thumbprint);
         }
 
-        private static bool IsThisMachine(Uri uri)
+        public static bool Verify(string pem,string mac,string token)
         {
-            if(uri.IsLoopback) return true;
-            if(!IPAddress.TryParse(uri.DnsSafeHost,out var ip))
-                return string.Equals(uri.DnsSafeHost,Dns.GetHostName(),StringComparison.OrdinalIgnoreCase);
-            return NetworkInterface.GetAllNetworkInterfaces()
-                .SelectMany(n=>n.GetIPProperties().UnicastAddresses).Any(a=>a.Address.Equals(ip));
+            if(pem==null || mac==null) return false;
+            byte[] expected;
+            using(var h=new HMACSHA256(Encoding.UTF8.GetBytes(token))) expected=h.ComputeHash(Encoding.UTF8.GetBytes(pem));
+            string hex=BitConverter.ToString(expected).Replace("-","").ToLowerInvariant();
+            if(hex.Length!=mac.Length) return false;
+            int diff=0;
+            for(int i=0;i<hex.Length;i++) diff|=hex[i]^char.ToLowerInvariant(mac[i]);
+            return diff==0;
         }
 
         // ---------- Smart Client: install once ----------

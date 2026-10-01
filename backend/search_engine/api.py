@@ -379,6 +379,17 @@ def create_app(config, transport=None):
         return Response(Path(ca).read_bytes(), media_type='application/x-x509-ca-cert',
                         headers={'Content-Disposition': 'attachment; filename="SearchEngine-CA.crt"'})
 
+    @app.get('/api/collector/ca')
+    def collector_ca(p=Depends(collector)):
+        """The CA for the Event Server plugin to publish to Smart Clients, signed with this collector's own token so a
+        machine in between (plain HTTP on the LAN) cannot substitute its own CA."""
+        import hashlib
+        ca = config.get('tls_ca_file')
+        if not ca or not Path(ca).is_file():
+            raise HTTPException(404, 'No local CA (HTTPS off, or an administrator-supplied certificate)')
+        pem = Path(ca).read_text(encoding='ascii')
+        return {'pem': pem, 'mac': hmac.new(p['token'].encode(), pem.encode(), hashlib.sha256).hexdigest()}
+
     @app.post('/api/ingest', status_code=202)
     def ingest(data: Envelope, p=Depends(collector)):
         collector_site(p, data.site_id)

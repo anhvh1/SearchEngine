@@ -38,11 +38,21 @@ Trình duyệt chỉ cho dùng micro trên trang HTTPS (hoặc `localhost`). Bac
 Chứng chỉ:
 - **Mặc định — CA riêng của backend.** Lần chạy đầu backend tạo một CA (hạn 10 năm, không bao giờ đổi) và chứng chỉ máy chủ ghi đủ tên máy và mọi địa chỉ IPv4 hiện có, lưu trong `C:\ProgramData\MilestoneSearch\backend\tls` (chỉ SYSTEM/Administrators đọc được). Chứng chỉ máy chủ tự cấp lại khi đổi IP/tên máy hoặc còn dưới 30 ngày; CA giữ nguyên nên máy khách không phải cài lại. Thêm tên/địa chỉ khác (DNS nội bộ, NAT): `"tls": {"names": ["search.congty.local"]}` rồi `restart`.
 - Trình cài exe tự thêm CA vào *Trusted Root* của máy chủ.
-- **Tự động trên máy có Smart Client:** plugin Event Server lấy CA từ backend cùng máy (loopback hoặc IP của chính máy — không đi qua mạng nên không giả mạo được) và lưu vào cấu hình Milestone; plugin Smart Client khi khởi động kiểm tra CA đã được tin chưa, chưa thì cài: chạy quyền Administrator thì cài im lặng vào máy, người dùng thường thì Windows hỏi xác nhận một lần (không tắt được hộp này). Chọn *No* thì không hỏi lại; xóa `%LOCALAPPDATA%\MilestoneSearch\ca-declined.txt` để được hỏi lại. Kết quả ghi trong log plugin. Backend đặt khác máy Event Server thì CA không được tự phát hành — cài thủ công như dưới.
-- **Thủ công (máy không có Smart Client, hoặc backend khác máy Event Server):** tải `http://<máy chủ>:8765/ca.crt` (trang web cũng hiện link này khi bấm micro trên trang HTTP), rồi chạy với quyền Administrator `certutil -addstore -f Root SearchEngine-CA.crt`, hoặc nhấp đúp file → *Install Certificate* → *Local Machine* → *Trusted Root Certification Authorities*. Nhiều máy: phân phối bằng Group Policy (*Computer Configuration → Windows Settings → Security Settings → Public Key Policies → Trusted Root Certification Authorities*). Chrome và Edge dùng kho chứng chỉ Windows; Firefox cần bật `security.enterprise_roots.enabled` nếu chưa nhận.
+- **Tự động trên máy có Smart Client:** plugin Event Server lấy CA từ backend (ở cùng máy hay máy khác đều được) kèm chữ ký HMAC bằng token collector — máy chen giữa trong LAN không có token nên không thay được CA — rồi lưu vào cấu hình Milestone; plugin Smart Client khi khởi động kiểm tra CA đã được tin chưa, chưa thì cài: chạy quyền Administrator thì cài im lặng vào máy, người dùng thường thì Windows hỏi xác nhận một lần (không tắt được hộp này). Chọn *No* thì không hỏi lại; xóa `%LOCALAPPDATA%\MilestoneSearch\ca-declined.txt` để được hỏi lại. Cần token collector đã cấu hình trên máy Event Server (xem *Backend và Milestone khác máy*).
+- **Thủ công (máy không có Smart Client):** tải `http://<máy chủ>:8765/ca.crt` (trang web cũng hiện link này khi bấm micro trên trang HTTP), rồi chạy với quyền Administrator `certutil -addstore -f Root SearchEngine-CA.crt`, hoặc nhấp đúp file → *Install Certificate* → *Local Machine* → *Trusted Root Certification Authorities*. Nhiều máy: phân phối bằng Group Policy (*Computer Configuration → Windows Settings → Security Settings → Public Key Policies → Trusted Root Certification Authorities*). Chrome và Edge dùng kho chứng chỉ Windows; Firefox cần bật `security.enterprise_roots.enabled` nếu chưa nhận.
 - **Dùng chứng chỉ của CA công ty thay thế:** `"tls": {"cert_file": "C:\\...\\server.pem", "key_file": "C:\\...\\server.key"}` (PEM; file cert gồm cả chuỗi trung gian). Khi đó không tạo CA riêng và `/ca.crt` trả 404.
 
-Firewall: trình cài mở cả hai cổng cho mạng con cục bộ. Phiên đăng nhập trên trang HTTP và HTTPS là riêng (khác origin): mở trang HTTPS cần đăng nhập lại một lần.
+Firewall: trình cài mở cả hai cổng cho mạng con cục bộ và mọi dải IP nội bộ (10/8, 172.16/12, 192.168/16), để máy ở VLAN khác trong LAN cũng vào được; đổi bằng `"firewall_remote_ip"` (cú pháp `remoteip` của netsh, ví dụ `"LocalSubnet,10.20.0.0/16"`) rồi chạy lại exe. Phiên đăng nhập trên trang HTTP và HTTPS là riêng (khác origin): mở trang HTTPS cần đăng nhập lại một lần.
+
+## Backend và Milestone khác máy
+
+Backend (máy A) và Milestone Management/Event Server (máy B) có thể tách rời; mọi máy trong LAN dùng địa chỉ của A.
+1. **A — backend:** `"host": "0.0.0.0"` (mặc định), chạy exe; firewall mở 8765/8443 cho các dải IP nội bộ. Trong trang quản trị → *Kết nối Milestone*: URL `https://<B>` (máy khác bắt buộc HTTPS; Management Server phải bật mã hóa), tài khoản dịch vụ, chọn kiểm tra chứng chỉ nếu chứng chỉ của B được tin. Người dùng Smart Client vẫn tự đăng nhập: backend xác thực token của họ với B.
+2. **Management Client:** Backend URL = `http://<IP của A>:8765` (không dùng `127.0.0.1` — giá trị này dùng chung cho collector trên B và Smart Client trên mọi máy).
+3. **B — Event Server:** token collector chỉ tự ghi ra file trên máy chạy backend, nên trên B đặt một lần (CMD quyền Administrator) rồi restart Event Server:
+   `setx /M MILESTONE_SEARCH_COLLECTOR_TOKEN "<token>"` — `<token>` là `token` của principal có role `collector` trong `C:\ProgramData\MilestoneSearch\backend\config.json` trên A. Token là bí mật: không gửi qua chat/email.
+4. **Smart Client (mọi máy):** không cần cấu hình; tab AI Search dùng Backend URL ở bước 2, và CA HTTPS được tự cài như mục trên khi bước 3 xong.
+5. Truy cập bằng tên DNS thay vì IP: thêm tên vào `"tls": {"names": [...]}` trên A rồi `restart`.
 
 ## Build plugin
 
@@ -94,7 +104,7 @@ Backup database backend bằng công cụ PostgreSQL, lưu file cấu hình riê
 - **Máy chủ Milestone:** backend tự phát hiện Management Server trên cùng máy (`http://localhost`). Máy khác: nhập địa chỉ trong tab **Vận hành → Kết nối Milestone**.
 - **Tài khoản đồng bộ nền** (tên sự kiện, trạng thái alarm): nhập một lần ở **Vận hành → Kết nối Milestone**; mật khẩu mã hóa bằng Windows DPAPI, token tự gia hạn. Thứ tự ưu tiên: giá trị nhập trên giao diện > `config.json` > tự phát hiện.
 - **Collector:** plugin Event Server mặc định bật, site `main`, backend `http://127.0.0.1:8765`. Token collector đọc từ biến `MILESTONE_SEARCH_COLLECTOR_TOKEN`, nếu không có thì từ `C:\ProgramData\MilestoneSearch\collector.token` do service backend ghi (chỉ SYSTEM, Administrators và tài khoản Event Server đọc được).
-- **Firewall:** trình cài exe mở cổng backend (HTTP và HTTPS) cho mạng con cục bộ (`remoteip=localsubnet`); `uninstall` xóa rule.
+- **Firewall:** trình cài exe mở cổng backend (HTTP và HTTPS) cho mạng con cục bộ và các dải IP nội bộ (`remoteip=localsubnet`); `uninstall` xóa rule.
 - **Tìm kiếm:** tên camera/thiết bị, tên sự kiện, trạng thái và mức ưu tiên được đưa vào chỉ mục. Lần đầu chạy bản này, backend tự xử lý lại toàn bộ bản ghi cũ để cập nhật chỉ mục.
 
 ## Trích xuất tự động và tìm theo người (bản 2026-09-28, P1–P4)

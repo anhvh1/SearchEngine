@@ -90,6 +90,14 @@ namespace MilestoneSearch.Tests
                 try { TrustedCa.Parse(bad); } catch(FormatException) { rejected = true; }
                 Check(rejected, "Must reject a certificate that is not the backend CA");
             }
+            // The Event Server publishes a CA only if the backend's HMAC over it matches the shared collector token.
+            string caPem = Pem("CN=Search Engine Local CA (srv)", true), token = "collector-token";
+            string mac;
+            using(var h = new System.Security.Cryptography.HMACSHA256(System.Text.Encoding.UTF8.GetBytes(token)))
+                mac = BitConverter.ToString(h.ComputeHash(System.Text.Encoding.UTF8.GetBytes(caPem))).Replace("-", "").ToLowerInvariant();
+            Check(TrustedCa.Verify(caPem, mac, token), "Must accept a CA signed with the collector token");
+            Check(!TrustedCa.Verify(Pem("CN=Search Engine Local CA (evil)", true), mac, token), "Must reject a substituted CA");
+            Check(!TrustedCa.Verify(caPem, mac, "other-token"), "Must reject a signature made with another token");
         }
     }
 }

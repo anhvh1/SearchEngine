@@ -225,16 +225,22 @@ def share_collector_token(config):
     subprocess.run(['icacls', str(COLLECTOR_TOKEN), '/inheritance:r', '/grant:r', *readers], check=True, stdout=subprocess.DEVNULL)
 
 
+# Every private (RFC 1918) range plus the local subnet: operator PCs in other VLANs of the same LAN must reach the
+# console too, but nothing on public addresses does. Override with "firewall_remote_ip" (netsh remoteip syntax).
+LAN_ONLY = 'LocalSubnet,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16'
+
+
 def open_firewall(config):
-    """Clients on the local network reach the console; nothing outside the subnet does."""
+    """Clients on the local network reach the console; nothing outside it does."""
     if config.get('host', '127.0.0.1') in ('127.0.0.1', 'localhost', '::1'):
         return
     port = ','.join(str(p) for p in (config.get('port', 8765), https_port(config)) if p)
+    remote = config.get('firewall_remote_ip') or LAN_ONLY
     subprocess.run(['netsh', 'advfirewall', 'firewall', 'delete', 'rule', f'name={FIREWALL_RULE}'],
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     subprocess.run(['netsh', 'advfirewall', 'firewall', 'add', 'rule', f'name={FIREWALL_RULE}', 'dir=in', 'action=allow',
-                    'protocol=TCP', f'localport={port}', 'remoteip=localsubnet', 'profile=any'], check=True, stdout=subprocess.DEVNULL)
-    print(f'Firewall: TCP {port} open to the local subnet.')
+                    'protocol=TCP', f'localport={port}', f'remoteip={remote}', 'profile=any'], check=True, stdout=subprocess.DEVNULL)
+    print(f'Firewall: TCP {port} open to {remote}.')
 
 
 def local_postgres_services(scm, config):

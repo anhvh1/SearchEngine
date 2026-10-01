@@ -56,7 +56,7 @@ namespace MilestoneSearch
         {
             for(int attempt=0;attempt<20 && !stop.IsCancellationRequested;attempt++)
             {
-                try{await TrustedCa.Publish(current).ConfigureAwait(false);return;}
+                try{await TrustedCa.Publish(current,CollectorToken()).ConfigureAwait(false);return;}
                 catch(Exception ex){if(attempt==0)Log(ex);}
                 try{await Task.Delay(30000,stop.Token).ConfigureAwait(false);}catch(OperationCanceledException){return;}
             }
