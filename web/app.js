@@ -259,7 +259,7 @@ async function showActiveGuard() {
     const when = x.last_sync ? new Date(x.last_sync).toLocaleString('vi-VN') : null;
     const box = node('div', undefined, 'rule' + (x.last_error ? ' proposed' : '')), text = node('div');
     text.append(node('code', `${x.url} · ${x.username || 'chưa có tài khoản'}`),
-      node('p', x.last_error ? `Lỗi lần nhập gần nhất: ${x.last_error}` : `Đã nhập ${x.imported.toLocaleString('vi-VN')} ảnh${when ? `, lần cuối ${when}` : ', chưa nhập lần nào'}`, 'muted'));
+      node('p', x.last_error ? `Lỗi lần nhập gần nhất: ${x.last_error}` : `Đã nhập ${x.imported.toLocaleString('vi-VN')} ảnh${x.face_photos ? `, gắn ${x.face_photos.toLocaleString('vi-VN')} ảnh khuôn mặt cho alarm` : ''}${when ? `, lần cuối ${when}` : ', chưa nhập lần nào'}`, 'muted'));
     const edit = node('button', 'Sửa'); edit.type = 'button';
     edit.onclick = () => { $('ag-url').value = x.url; $('ag-user').value = x.username; $('ag-password').focus(); };
     const remove = node('button', 'Xóa'); remove.type = 'button';

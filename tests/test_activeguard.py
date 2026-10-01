@@ -295,3 +295,50 @@ def test_string_result_count_does_not_break_paging(tmp_path):
     engine, ag, settings = engine_and_client(tmp_path, server)
     done = activeguard.sync(engine, ag, {**settings, 'types': ['face']})
     assert done == {'face': 3}
+
+
+class AlarmServer(Server):
+    """Adds Active Guard's watchlist and alarm-history endpoints."""
+    def __init__(self, alarms, watchlist):
+        super().__init__()
+        self.alarms, self.watchlist = alarms, watchlist
+        for a in alarms:
+            self.add(a['detected_thumbnail'], 'alarm', 'cam-a', 0, {})
+
+    def __call__(self, request):
+        path = request.url.path
+        if 'authorization' in request.headers:
+            ok = lambda body: httpx.Response(200, json={'status_body': {'status': True, 'details': []}, 'result_body': body})
+            if path == '/ai/v1.0/matchinglist/list':
+                return ok({'result_count': str(len(self.watchlist)), 'matching_list': self.watchlist})
+            if path == '/ai/v1.0/ai-alarm/search':
+                assert json.loads(request.content)['section_face']['alarm_type'] == 'listed-alarm'
+                return ok({'search_session_id': 'alarms'})
+            if path == '/ai/v1.0/ai-alarm/search/alarms':
+                return ok({'result_count': str(len(self.alarms)), 'search_result': self.alarms})
+        return super().__call__(request)
+
+
+def test_active_guard_face_alarm_photo_is_attached_to_the_milestone_alarm(tmp_path):
+    """Milestone's 'Registered face detection' alarm arrives without a photo; Active Guard's own alarm history has it."""
+    from test_extract import T0, active_guard
+    engine, _, settings = engine_and_client(tmp_path, Server())
+    for i, (person, seconds) in enumerate([('Bùi Trung Dũng', 3), ('Lê Công Tuấn', 3), ('Bùi Trung Dũng', 600)]):
+        engine.ingest(active_guard(i, person, seconds))
+    while engine.process_pending():
+        pass
+    at = lambda s: (T0 + timedelta(seconds=s)).strftime('%Y-%m-%d %H:%M:%S.%f')[:23]
+    alarm = lambda n, wid, s: {'alarm_date_time': at(s), 'camera_id': 'cam-a', 'alarm_type': 'listed-alarm', 'matching_list_id': wid,
+                               'degree_of_similarity': '91', 'detected_thumbnail': f'SearchAlarm\\multi-AI\\9999\\cam-a\\{n}_received.jpg'}
+    server = AlarmServer([alarm(1, 'w-dung', 5), alarm(2, 'w-unknown', 5), alarm(3, 'w-dung', 300)],
+                         [{'matching_list_id': 'w-dung', 'image_id_list': [{'last_name': 'Bùi', 'first_name': 'Trung Dũng'}]}])
+    ag = activeguard.ActiveGuard('http://ag.local:8090', 'operator', 'secret', transport=httpx.MockTransport(server))
+    assert activeguard.face_alarm_photos(engine, ag, settings, now=T0 + timedelta(minutes=1)) == 1
+    with engine.lock:
+        keys = [r[0] for r in engine.db.execute('SELECT key FROM media')]
+        bodies = {r[0]: json.loads(r[1]) for r in engine.db.execute('SELECT key, body FROM records')}
+    assert len(keys) == 1 and bodies[keys[0]]['has_image']
+    assert 'Bùi Trung Dũng' in json.dumps(bodies[keys[0]], ensure_ascii=False)
+    assert bodies[keys[0]]['occurred_at'].startswith((T0 + timedelta(seconds=3)).strftime('%Y-%m-%dT%H:%M:%S'))  # not the 600 s one
+    # Running again changes nothing: the alarm already has its photo, the others have no Active Guard counterpart.
+    assert activeguard.face_alarm_photos(engine, ag, settings, now=T0 + timedelta(minutes=2)) == 0

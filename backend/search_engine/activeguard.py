@@ -167,6 +167,20 @@ class ActiveGuard:
         # some servers report result_count as a string ("30") rather than a number
         return int(result.get('result_count', 0) or 0), result.get('search_result', [])
 
+    def alarm_search(self, section, start, end):
+        body = {'date_from': api_time(start), 'date_to': api_time(end), 'sort': {'sort-item': 'shot-date-time', 'asc-desc': 'asc'},
+                'section_face': section}
+        return self.call('POST', '/ai/v1.0/ai-alarm/search', json=body)['result_body']['search_session_id']
+
+    def alarm_results(self, session, start=0, count=100):
+        body = self.call('GET', f'/ai/v1.0/ai-alarm/search/{session}', params={'result-from': start + 1, 'result-count': count})
+        result = body.get('result_body', {})
+        return int(result.get('result_count', 0) or 0), result.get('search_result', [])
+
+    def face_watchlist(self):
+        body = self.call('POST', '/ai/v1.0/matchinglist/list', json={'section_face': {'search_type': 'list'}, 'srv_id': SRV})
+        return body.get('result_body', {}).get('matching_list', [])
+
     def thumbnail(self, key, info=True):
         params = {'thumbnail-key': key}
         if info:
@@ -282,7 +296,8 @@ def describe_settings(engine, config):
         sid = server['id']
         rows.append({'id': sid, 'url': server.get('url'), 'username': user or '', 'site_id': server['site_id'], 'has_credentials': bool(user),
                      'last_sync': engine.checkpoint(f'activeguard:{sid}:last_sync'), 'last_error': engine.checkpoint(f'activeguard:{sid}:last_error') or None,
-                     'imported': int(engine.checkpoint(f'activeguard:{sid}:imported') or 0)})
+                     'imported': int(engine.checkpoint(f'activeguard:{sid}:imported') or 0),
+                     'face_photos': int(engine.checkpoint(f'activeguard:{sid}:face_photos') or 0)})
     return {'servers': rows, 'types': shared['types'], 'imported': sum(r['imported'] for r in rows)}
 
 
@@ -364,12 +379,102 @@ def sync(engine, ag, settings, now=None):
         engine.checkpoint(f"activeguard:{settings['id']}:cursor:{kind}", (datetime.fromisoformat(to_utc_iso(last).replace('Z', '+00:00')) if last and not finished else now).isoformat())
         done[kind] = count
     sid = settings['id']
+    if 'face' in settings['types'] and (not offered or 'face' in offered):
+        try:
+            attached = face_alarm_photos(engine, ag, settings, now)
+            if attached:
+                engine.checkpoint(f'activeguard:{sid}:face_photos', str(int(engine.checkpoint(f'activeguard:{sid}:face_photos') or 0) + attached))
+        except ActiveGuardError as exc:
+            import logging
+            logging.warning('Active Guard %s: face alarm photos skipped: %s', sid, exc)
     engine.checkpoint(f'activeguard:{sid}:last_sync', now.isoformat())
     total = sum(done.values())
     if total:
         engine.checkpoint(f'activeguard:{sid}:imported', str(int(engine.checkpoint(f'activeguard:{sid}:imported') or 0) + total))
     engine.checkpoint(f'activeguard:{sid}:last_error', '')
     return done
+
+
+# ---------------- photos for Milestone face alarms ----------------
+ALARM_MATCH_SECONDS = 15
+ALARM_RESCAN = timedelta(minutes=30)   # a Milestone alarm can be ingested after Active Guard's own record of it
+
+
+def watchlist_names(ag):
+    """{matching_list_id: name key} for the face watchlist, keyed the same way person names are indexed."""
+    from .extract import entity_key
+    out = {}
+    for entry in ag.face_watchlist():
+        people = [entry] + list(entry.get('image_id_list') or [])
+        name = next((' '.join(x for x in (p.get('last_name'), p.get('first_name')) if x) for p in people
+                     if p.get('last_name') or p.get('first_name')), '')
+        if entry.get('matching_list_id') and name.strip():
+            out[entry['matching_list_id']] = entity_key(name)
+    return out
+
+
+def milestone_alarm_for(engine, person, when):
+    """The photo-less Milestone alarm for this person closest in time to Active Guard's alarm, if any."""
+    moment = datetime.fromisoformat(when.replace('Z', '+00:00'))
+    low = (moment - timedelta(seconds=ALARM_MATCH_SECONDS)).strftime('%Y-%m-%dT%H:%M:%S')
+    high = (moment + timedelta(seconds=ALARM_MATCH_SECONDS + 1)).strftime('%Y-%m-%dT%H:%M:%S')
+    with engine.lock:
+        rows = engine.db.execute(
+            """SELECT r.key, r.occurred_at FROM records r JOIN attributes a ON a.key=r.key
+               WHERE r.kind='alarm' AND a.role='person' AND a.folded=? AND r.occurred_at>=? AND r.occurred_at<?
+                 AND NOT EXISTS (SELECT 1 FROM media m WHERE m.key=r.key)""", (person, low, high)).fetchall()
+    best = None
+    for key, occurred in rows:
+        gap = abs((datetime.fromisoformat(occurred.replace('Z', '+00:00')) - moment).total_seconds())   # stored as UTC '...Z'
+        if best is None or gap < best[0]:
+            best = (gap, key)
+    return best[1] if best else None
+
+
+def attach_photo(engine, key, image):
+    with engine.lock, engine.db:
+        if engine.db.execute('SELECT 1 FROM media WHERE key=?', (key,)).fetchone():
+            return False
+        engine.db.execute('INSERT INTO media VALUES(?,?,?)', (key, 'image/jpeg', image))
+        row = engine.db.execute('SELECT body FROM records WHERE key=?', (key,)).fetchone()
+        if row:
+            body = json.loads(row[0])
+            body['has_image'] = True
+            engine.db.execute('UPDATE records SET body=? WHERE key=?', (json.dumps(body, ensure_ascii=False), key))
+    return True
+
+
+def face_alarm_photos(engine, ag, settings, now=None):
+    """Milestone's 'Registered face detection' alarms often arrive without the photo; Active Guard keeps the captured
+    face of each of its watchlist alarms (detected_thumbnail). Attach it to the matching Milestone alarm: same person
+    (watchlist name), within ALARM_MATCH_SECONDS. Returns how many alarms got a photo."""
+    now = now or datetime.now(timezone.utc)
+    sid = settings['id']
+    cameras = [c for c in ag.cameras() if c['enabled'] and 'face' in c['capability']]
+    if not cameras:
+        return 0
+    cursor = engine.checkpoint(f'activeguard:{sid}:cursor:face_alarm')
+    start = datetime.fromisoformat(cursor) - ALARM_RESCAN if cursor else now - timedelta(hours=float(settings['lookback_hours']))
+    names = watchlist_names(ag)
+    session = ag.alarm_search({'alarm_type': 'listed-alarm', 'cameras': [{'srv_id': SRV, 'camera_id': c['camera_id']} for c in cameras]}, start, now)
+    attached, offset = 0, 0
+    while True:
+        total, hits = ag.alarm_results(session, offset, 100)
+        for hit in hits:
+            person = names.get(hit.get('matching_list_id'))
+            if not person or not hit.get('detected_thumbnail') or not hit.get('alarm_date_time'):
+                continue
+            key = milestone_alarm_for(engine, person, to_utc_iso(hit['alarm_date_time']))
+            if not key:
+                continue
+            image = ag.thumbnail(hit['detected_thumbnail'], info=True).get('thumbnail_image')
+            if image and attach_photo(engine, key, image):
+                attached += 1
+        offset += len(hits)
+        if not hits or offset >= total:
+            break
+    engine.checkpoint(f'activeguard:{sid}:cursor:face_alarm', now.isoformat())
+    return attached
 
 
 def face_photo_search(engine, ag, settings, content, days=7, similarity=70, limit=50):
