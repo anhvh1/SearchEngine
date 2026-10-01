@@ -369,6 +369,16 @@ def create_app(config, transport=None):
     def health():
         return {'status': 'degraded' if worker_state['error'] else 'ok'}
 
+    @app.get('/ca.crt', include_in_schema=False)
+    def ca_certificate():
+        """Public half of the backend's own CA: installing it once lets a PC's browsers trust the HTTPS console."""
+        from fastapi import Response
+        ca = config.get('tls_ca_file')
+        if not ca or not Path(ca).is_file():
+            raise HTTPException(404, 'HTTPS uses an administrator-supplied certificate; no local CA to install')
+        return Response(Path(ca).read_bytes(), media_type='application/x-x509-ca-cert',
+                        headers={'Content-Disposition': 'attachment; filename="SearchEngine-CA.crt"'})
+
     @app.post('/api/ingest', status_code=202)
     def ingest(data: Envelope, p=Depends(collector)):
         collector_site(p, data.site_id)
@@ -439,6 +449,7 @@ def create_app(config, transport=None):
         return {'chat': bool(ai.get('chat_model')), 'embedding': bool(ai.get('embedding_model')), 'vision': bool(ai.get('vision_model')),
                 'activeguard': bool(activeguard_configured()),
                 'voice': bool(ai.get('whisper_model')), 'video_playback': False,
+                'https_port': int(config.get('https_port', 8443) or 0) if config.get('tls_ca_file') or (config.get('tls') or {}).get('cert_file') else 0,
                 'identity': p.get('identity', 'token')}
 
     @app.post('/api/transcribe')

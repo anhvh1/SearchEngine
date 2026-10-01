@@ -73,13 +73,41 @@ def wait_for_app(config, timeout=300, interval=5):
             time.sleep(interval)
 
 
-def build_server(config_path, log=None):
+def https_port(config):
+    """HTTPS is on by default (8443): browsers only allow the microphone on a secure page. 0 turns it off."""
+    return int(config.get('https_port', 8443) or 0)
+
+
+def tls_folder(config_path):
+    return Path(config_path).parent / 'tls'
+
+
+def build_servers(config_path, log=None):
+    """The HTTP listener (plugins, collector) and the HTTPS listener (browsers) serve one app."""
     import uvicorn
     config = json.loads(Path(config_path).read_text(encoding='utf8'))
+    tls = None
+    if https_port(config):
+        from .tls import ensure_certificates
+        tls = ensure_certificates(tls_folder(config_path), config)
+        config['tls_ca_file'] = tls[2]
     app = wait_for_app(config)
     options = {'log_config': None} if log is None else {}
-    return uvicorn.Server(uvicorn.Config(app, host=config.get('host', '127.0.0.1'), port=config.get('port', 8765),
-                                         workers=1, **options))
+    host = config.get('host', '127.0.0.1')
+    servers = [uvicorn.Server(uvicorn.Config(app, host=host, port=config.get('port', 8765), workers=1, **options))]
+    if tls:
+        # lifespan off: the background workers are started once, by the HTTP listener.
+        servers.append(uvicorn.Server(uvicorn.Config(app, host=host, port=https_port(config), workers=1, lifespan='off',
+                                                     ssl_certfile=tls[0], ssl_keyfile=tls[1], **options)))
+    return servers
+
+
+def serve(servers):
+    import asyncio
+
+    async def all_of():
+        await asyncio.gather(*(s.serve() for s in servers))
+    asyncio.run(all_of())
 
 
 def service_class():
@@ -93,12 +121,12 @@ def service_class():
 
         def __init__(self, args):
             super().__init__(args)
-            self.server = None
+            self.servers = []
 
         def SvcStop(self):
             self.ReportServiceStatus(win32service.SERVICE_STOP_PENDING)
-            if self.server:
-                self.server.should_exit = True
+            for server in self.servers:
+                server.should_exit = True
 
         def SvcDoRun(self):
             # Services have no console; keep prints and tracebacks in a file next to the rotating log.
@@ -114,9 +142,9 @@ def service_class():
                     share_collector_token(read_config())
                 except Exception:
                     logging.exception('Collector token file not written; the Event Server plugin needs MILESTONE_SEARCH_COLLECTOR_TOKEN')
-                self.server = build_server(CONFIG)
-                self.server.run()
-                if not self.server.should_exit:
+                self.servers = build_servers(CONFIG)
+                serve(self.servers)
+                if not all(s.should_exit for s in self.servers):
                     raise RuntimeError('Server stopped without a stop request')
             except BaseException:
                 logging.exception('Backend service failed')
@@ -201,7 +229,7 @@ def open_firewall(config):
     """Clients on the local network reach the console; nothing outside the subnet does."""
     if config.get('host', '127.0.0.1') in ('127.0.0.1', 'localhost', '::1'):
         return
-    port = str(config.get('port', 8765))
+    port = ','.join(str(p) for p in (config.get('port', 8765), https_port(config)) if p)
     subprocess.run(['netsh', 'advfirewall', 'firewall', 'delete', 'rule', f'name={FIREWALL_RULE}'],
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     subprocess.run(['netsh', 'advfirewall', 'firewall', 'add', 'rule', f'name={FIREWALL_RULE}', 'dir=in', 'action=allow',
@@ -276,6 +304,9 @@ def start(scm):
 def probe(config):
     host = config.get('host', '127.0.0.1')
     url = f"http://{'127.0.0.1' if host in ('0.0.0.0', '::', '') else host}:{config.get('port', 8765)}/"
+    if https_port(config):
+        print(f'HTTPS (microphone in browsers): https://<this server>:{https_port(config)}/ ; '
+              f'other PCs trust it once by installing http://<this server>:{config.get("port", 8765)}/ca.crt')
     deadline = time.time() + 30
     while time.time() < deadline:
         try:
@@ -289,6 +320,19 @@ def probe(config):
     if log.exists():
         print(''.join(log.read_text(encoding='utf8', errors='replace').splitlines(True)[-20:]))
     return False
+
+
+def trust_local_ca(config):
+    """Make this machine's browsers trust the backend's own CA; other PCs install /ca.crt once."""
+    if not https_port(config):
+        return
+    from .tls import ensure_certificates
+    _, _, ca = ensure_certificates(tls_folder(CONFIG), config)
+    if not ca:
+        print('HTTPS: using the certificate configured in tls.cert_file.')
+        return
+    result = subprocess.run(['certutil', '-addstore', '-f', 'Root', ca], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    print('HTTPS: local CA ' + ('trusted on this machine.' if result.returncode == 0 else 'could NOT be added to the trusted root store.'))
 
 
 def install(args):
@@ -332,6 +376,7 @@ def install(args):
         if found:
             print('PostgreSQL cùng máy: ' + ', '.join(found) + '. Backend tự thử kết nối lại nếu chưa sẵn sàng, không đợi Windows.')
         share_collector_token(config)
+        trust_local_ca(config)
         open_firewall(config)
         start(scm)
     finally:
@@ -382,7 +427,7 @@ def run(args):
         servicemanager.PrepareToHostSingle(service_class())
         servicemanager.StartServiceCtrlDispatcher()
     elif args.command == 'console':
-        build_server(args.config or CONFIG, log=True).run()
+        serve(build_servers(args.config or CONFIG, log=True))
     elif args.command in CLI_COMMANDS:
         from . import cli
         sys.argv = [EXE_NAME, args.command, '--config', str(args.config or CONFIG)] + args.rest

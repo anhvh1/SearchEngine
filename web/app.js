@@ -186,7 +186,17 @@ function setupMic() {
 }
 function listening(on, text) { $('mic').classList.toggle('listening', on); $('voice-status').textContent = text || ''; }
 function stopListening() { if (recorder?.state === 'recording') recorder.stop(); if (recognizer) recognizer.stop(); }
+function needHttps() {
+  // Browsers only allow the microphone on a secure page; send the user to the backend's HTTPS listener.
+  const status = $('voice-status');
+  status.replaceChildren('Trình duyệt chỉ cho dùng micro trên trang HTTPS. ');
+  if (!caps.https_port) { status.append('Máy chủ chưa bật HTTPS (https_port).'); return; }
+  const link = (href, text) => Object.assign(document.createElement('a'), {href, textContent: text});
+  status.append(link(`https://${location.hostname}:${caps.https_port}${location.pathname}${location.search}`, 'Mở trang HTTPS'),
+    ' · Lần đầu dùng trên máy này: ', link('/ca.crt', 'tải chứng chỉ'), ' rồi cài vào "Trusted Root Certification Authorities".');
+}
 $('mic').onclick = async () => {
+  if (!window.isSecureContext) { needHttps(); return; }
   if (recorder?.state === 'recording' || recognizer) { stopListening(); return; }
   try {
     if (caps.voice) await recordOnServer(); else listenInBrowser();

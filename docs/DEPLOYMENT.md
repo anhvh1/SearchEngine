@@ -29,6 +29,20 @@ Cài đặt: nhấp đúp `MilestoneSearch.Backend.exe`, chấp nhận UAC. Chư
 
 Nâng cấp hoặc áp dụng thay đổi `database`: chạy lại exe mới/cũ. Sửa cấu hình khác: `MilestoneSearch.Backend.exe restart`. Lệnh khác: `status`, `start`, `stop`, `uninstall` (giữ cấu hình/dữ liệu), `console` (chạy foreground để gỡ lỗi), và các lệnh CLI `init`, `seed`, `import`, `backfill`, `discover`, `openapi` (mặc định dùng cấu hình trong ProgramData). Biến môi trường như `MILESTONE_USERNAME`/`MILESTONE_PASSWORD` phải đặt ở mức Machine rồi restart service. Exe không tự mở Windows Firewall.
 
+## HTTPS cho trình duyệt (micro)
+
+Trình duyệt chỉ cho dùng micro trên trang HTTPS (hoặc `localhost`). Backend chạy song song hai cổng trên cùng `host`:
+- `port` (mặc định 8765, HTTP): plugin Management/Event Server/Smart Client và collector dùng cổng này, không đổi.
+- `https_port` (mặc định 8443, HTTPS): người dùng mở `https://<máy chủ>:8443/` để tìm bằng giọng nói. Đặt `"https_port": 0` để tắt.
+
+Chứng chỉ:
+- **Mặc định — CA riêng của backend.** Lần chạy đầu backend tạo một CA (hạn 10 năm, không bao giờ đổi) và chứng chỉ máy chủ ghi đủ tên máy và mọi địa chỉ IPv4 hiện có, lưu trong `C:\ProgramData\MilestoneSearch\backend\tls` (chỉ SYSTEM/Administrators đọc được). Chứng chỉ máy chủ tự cấp lại khi đổi IP/tên máy hoặc còn dưới 30 ngày; CA giữ nguyên nên máy khách không phải cài lại. Thêm tên/địa chỉ khác (DNS nội bộ, NAT): `"tls": {"names": ["search.congty.local"]}` rồi `restart`.
+- Trình cài exe tự thêm CA vào *Trusted Root* của máy chủ.
+- **Mỗi máy khách cài CA một lần:** tải `http://<máy chủ>:8765/ca.crt` (trang web cũng hiện link này khi bấm micro trên trang HTTP), rồi chạy với quyền Administrator `certutil -addstore -f Root SearchEngine-CA.crt`, hoặc nhấp đúp file → *Install Certificate* → *Local Machine* → *Trusted Root Certification Authorities*. Nhiều máy: phân phối bằng Group Policy (*Computer Configuration → Windows Settings → Security Settings → Public Key Policies → Trusted Root Certification Authorities*). Chrome và Edge dùng kho chứng chỉ Windows; Firefox cần bật `security.enterprise_roots.enabled` nếu chưa nhận.
+- **Dùng chứng chỉ của CA công ty thay thế:** `"tls": {"cert_file": "C:\\...\\server.pem", "key_file": "C:\\...\\server.key"}` (PEM; file cert gồm cả chuỗi trung gian). Khi đó không tạo CA riêng và `/ca.crt` trả 404.
+
+Firewall: trình cài mở cả hai cổng cho mạng con cục bộ. Phiên đăng nhập trên trang HTTP và HTTPS là riêng (khác origin): mở trang HTTPS cần đăng nhập lại một lần.
+
 ## Build plugin
 
 Chạy `scripts/build-plugin.ps1`. Gói zip trong `dist` gồm `MilestoneSearch.dll`, `plugin.def`, Newtonsoft.Json và WebView2 dependencies. Cần WebView2 Evergreen Runtime trên máy Client. Build hiện dùng MIP DLL trong `C:\Program Files\Milestone\XProtect Smart Client`; override bằng `-SdkPath` khi build cho release khác.
@@ -38,7 +52,7 @@ Build tạo ba ZIP độc lập. Cài `MilestoneSearch.EventServer` trên Event 
 ## Management Client
 
 1. Vào MIP Plug-ins → Milestone Search. Cấp quyền plugin `ConfigureSearch` cho quản trị viên phù hợp.
-2. Điền Backend URL: HTTPS, hoặc HTTP khi là loopback hay IP LAN nội bộ (10.x, 172.16–31.x, 192.168.x, 169.254.x, IPv6 ULA/link-local). Hostname luôn phải HTTPS. HTTP gửi token không mã hóa; chỉ dùng trong mạng tin cậy. Backend đặt `"host": "0.0.0.0"` và mở firewall cổng 8765. Site ID trùng cấu hình backend. Lưu trước khi bật collector.
+2. Điền Backend URL: HTTPS, hoặc HTTP khi là loopback hay IP LAN nội bộ (10.x, 172.16–31.x, 192.168.x, 169.254.x, IPv6 ULA/link-local). Hostname luôn phải HTTPS. HTTP gửi token không mã hóa; chỉ dùng trong mạng tin cậy. Backend đặt `"host": "0.0.0.0"` và mở firewall cổng 8765 (và 8443 cho HTTPS). Site ID trùng cấu hình backend. Lưu trước khi bật collector.
 3. Đăng nhập console bằng token admin backend. Tạo hồ sơ, thử payload thật, sau đó kích hoạt.
 4. Configuration URL/site/enabled được lưu qua `SaveItemConfiguration`; bí mật không lưu trong cấu hình Milestone chia sẻ.
 
@@ -79,7 +93,7 @@ Backup database backend bằng công cụ PostgreSQL, lưu file cấu hình riê
 - **Máy chủ Milestone:** backend tự phát hiện Management Server trên cùng máy (`http://localhost`). Máy khác: nhập địa chỉ trong tab **Vận hành → Kết nối Milestone**.
 - **Tài khoản đồng bộ nền** (tên sự kiện, trạng thái alarm): nhập một lần ở **Vận hành → Kết nối Milestone**; mật khẩu mã hóa bằng Windows DPAPI, token tự gia hạn. Thứ tự ưu tiên: giá trị nhập trên giao diện > `config.json` > tự phát hiện.
 - **Collector:** plugin Event Server mặc định bật, site `main`, backend `http://127.0.0.1:8765`. Token collector đọc từ biến `MILESTONE_SEARCH_COLLECTOR_TOKEN`, nếu không có thì từ `C:\ProgramData\MilestoneSearch\collector.token` do service backend ghi (chỉ SYSTEM, Administrators và tài khoản Event Server đọc được).
-- **Firewall:** trình cài exe mở cổng backend cho mạng con cục bộ (`remoteip=localsubnet`); `uninstall` xóa rule.
+- **Firewall:** trình cài exe mở cổng backend (HTTP và HTTPS) cho mạng con cục bộ (`remoteip=localsubnet`); `uninstall` xóa rule.
 - **Tìm kiếm:** tên camera/thiết bị, tên sự kiện, trạng thái và mức ưu tiên được đưa vào chỉ mục. Lần đầu chạy bản này, backend tự xử lý lại toàn bộ bản ghi cũ để cập nhật chỉ mục.
 
 ## Trích xuất tự động và tìm theo người (bản 2026-09-28, P1–P4)
