@@ -30,8 +30,12 @@ const eventLabel = name => VI[(name || '').trim().toLowerCase()] || name;
 const when = value => new Date(value).toLocaleString('vi-VN', {hour: '2-digit', minute: '2-digit', second: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric'});
 
 /* ---------- sign-in ---------- */
+// Kept per browser tab: survives F5, ends when the tab closes (shared operator PCs). The server still expires it.
+const SESSION = 'search-engine-session';
+function remember(value) { try { if (value) sessionStorage.setItem(SESSION, value); else sessionStorage.removeItem(SESSION); } catch { /* storage blocked: sign in per load */ } }
 async function enter() {
   const me = await api('/me');
+  remember(token);
   $('identity').textContent = me.name;
   document.querySelectorAll('.admin-only').forEach(n => n.hidden = !me.roles.includes('admin'));
   $('login').hidden = true; $('shell').hidden = false; $('login-error').textContent = '';
@@ -41,7 +45,7 @@ async function enter() {
   $('ask-input').focus();
 }
 function signOut() {
-  const old = token; token = '';
+  const old = token; token = ''; remember('');
   if (old) fetch('/api/session', {method: 'DELETE', headers: {Authorization: `Bearer ${old}`}}).catch(() => {});
   $('shell').hidden = true; $('login').hidden = false; $('answer').hidden = true; $('results').replaceChildren(); $('detail').hidden = true;
   document.body.classList.remove('has-results'); $('examples').hidden = false;
@@ -309,3 +313,12 @@ $('connection-form').onsubmit = async e => {
     $('conn-password').value = ''; await operations(); $('conn-status').textContent = 'Đã lưu.';
   } catch (err) { $('conn-status').textContent = err.message; }
 };
+
+// Last, so every handler above exists: resume the tab's session after a reload instead of asking to sign in again.
+(async () => {
+  let saved = '';
+  try { saved = sessionStorage.getItem(SESSION) || ''; } catch { /* storage blocked */ }
+  if (!saved || token) return;
+  token = saved;
+  try { await enter(); } catch { token = ''; remember(''); }
+})();
