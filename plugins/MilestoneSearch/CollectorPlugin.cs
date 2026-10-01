@@ -46,9 +46,20 @@ namespace MilestoneSearch
             {
                 var next=PluginSettings.Load();next.Validate();outbox.SetQuota(next.OutboxBytes);settings=next;
                 PluginLog.Info("Collector settings loaded: site="+next.SiteId+", enabled="+next.Enabled+", backend="+next.BackendUrl+", reason="+reason);
+                _=PublishBackendCa(next);
                 // Alarms arrive by direct push only now; no Milestone REST reconciliation to trigger here.
             }
             catch(Exception ex){Log(ex);}
+        }
+        // The backend may still be starting (it waits for PostgreSQL); keep trying for a while.
+        private async Task PublishBackendCa(PluginSettings current)
+        {
+            for(int attempt=0;attempt<20 && !stop.IsCancellationRequested;attempt++)
+            {
+                try{await TrustedCa.Publish(current).ConfigureAwait(false);return;}
+                catch(Exception ex){if(attempt==0)Log(ex);}
+                try{await Task.Delay(30000,stop.Token).ConfigureAwait(false);}catch(OperationCanceledException){return;}
+            }
         }
         private object Notification(Message message,FQID sender,FQID related)
         {

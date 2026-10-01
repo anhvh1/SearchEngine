@@ -23,6 +23,16 @@ namespace MilestoneSearch.Tests
             finally { Directory.Delete(directory, true); }
         }
         static void Check(bool condition, string message) { if(!condition) throw new Exception(message); }
+        static string Pem(string subject, bool ca)
+        {
+            using(var key = System.Security.Cryptography.ECDsa.Create())
+            {
+                var request = new System.Security.Cryptography.X509Certificates.CertificateRequest(subject, key, System.Security.Cryptography.HashAlgorithmName.SHA256);
+                request.CertificateExtensions.Add(new System.Security.Cryptography.X509Certificates.X509BasicConstraintsExtension(ca, false, 0, true));
+                var cert = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddDays(1));
+                return "-----BEGIN CERTIFICATE-----\n" + Convert.ToBase64String(cert.RawData) + "\n-----END CERTIFICATE-----\n";
+            }
+        }
         static async Task Run(string directory)
         {
             foreach(var ok in new[]{"http://127.0.0.1:8765","http://192.168.100.145:8765","http://10.0.0.5:8765","http://172.20.1.1:8765","https://search.example.com"})
@@ -71,6 +81,15 @@ namespace MilestoneSearch.Tests
             var mappedWithSnapshot = EnvelopeMapper.Map(withSnapshot,"lab");
             Check((string)mappedWithSnapshot["payload"]["Snapshot"]["Image"] == Convert.ToBase64String(bytes),
                 "Must lift the alarm's snapshot image into payload.Snapshot.Image, skipping empty entries");
+
+            // Only the backend's own CA may ever be installed as a trusted root on operator PCs.
+            Check(TrustedCa.Parse(Pem("CN=Search Engine Local CA (srv)", true)).Subject.Contains("Search Engine Local CA"), "Must accept the backend CA");
+            foreach(var bad in new[]{Pem("CN=Search Engine Local CA (srv)", false), Pem("CN=Some Other Root", true)})
+            {
+                bool rejected = false;
+                try { TrustedCa.Parse(bad); } catch(FormatException) { rejected = true; }
+                Check(rejected, "Must reject a certificate that is not the backend CA");
+            }
         }
     }
 }
