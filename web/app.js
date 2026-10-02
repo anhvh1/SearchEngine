@@ -45,7 +45,7 @@ async function enter() {
   $('ask-input').focus();
 }
 function signOut() {
-  const old = token; token = ''; remember('');
+  const old = token; token = ''; remember(''); dropImages();
   if (old) fetch('/api/session', {method: 'DELETE', headers: {Authorization: `Bearer ${old}`}}).catch(() => {});
   $('shell').hidden = true; $('login').hidden = false; $('answer').hidden = true; $('results').replaceChildren(); $('detail').hidden = true;
   document.body.classList.remove('has-results'); $('examples').hidden = false;
@@ -140,11 +140,29 @@ function row(item) {
   return b;
 }
 function span(ep) { const s = Math.round((new Date(ep.last) - new Date(ep.first)) / 1000); return s < 60 ? `${s} giây` : `${Math.round(s / 60)} phút`; }
+// Images need the bearer token, so they are fetched once and shown as object URLs. The list thumbnail, the detail
+// panel and a repeated search share one download per image; the oldest are released past IMAGE_CACHE.
+const images = new Map(), IMAGE_CACHE = 300;
+function imageEntry(key) {
+  let entry = images.get(key);
+  if (entry) return entry;
+  entry = {url: '', promise: fetch(`/api/records/${encodeURIComponent(key)}/image`, {headers: {Authorization: `Bearer ${token}`}})
+    .then(r => r.ok ? r.blob() : Promise.reject()).then(b => (entry.url = URL.createObjectURL(b)))};
+  entry.promise.catch(() => { if (images.get(key) === entry) images.delete(key); });   // a failed download may be retried
+  images.set(key, entry);
+  if (images.size > IMAGE_CACHE) {
+    const [oldKey, old] = images.entries().next().value;
+    images.delete(oldKey); old.promise.then(URL.revokeObjectURL, () => {});
+  }
+  return entry;
+}
+function dropImages() { images.forEach(e => e.promise.then(URL.revokeObjectURL, () => {})); images.clear(); }
 function thumb(key, className) {
-  // Images need the bearer token, so they are fetched and shown as object URLs.
-  const img = node('img', undefined, className); img.alt = 'Ảnh chụp sự kiện'; img.loading = 'lazy';
-  fetch(`/api/records/${encodeURIComponent(key)}/image`, {headers: {Authorization: `Bearer ${token}`}})
-    .then(r => r.ok ? r.blob() : Promise.reject()).then(b => { img.src = URL.createObjectURL(b); }).catch(() => img.remove());
+  // No alt until the picture is there: an empty img with alt text shows a broken-image icon while loading.
+  const img = node('img', undefined, className); img.loading = 'lazy';
+  const show = url => { img.alt = 'Ảnh chụp sự kiện'; img.src = url; };
+  const entry = imageEntry(key);
+  if (entry.url) show(entry.url); else entry.promise.then(show, () => img.remove());
   return img;
 }
 function detail(item) {

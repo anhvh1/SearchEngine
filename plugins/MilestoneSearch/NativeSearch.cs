@@ -497,21 +497,44 @@ namespace MilestoneSearch
             Padding = new Thickness(8, 1, 8, 1), Margin = new Thickness(0, 0, 4, 0),
             Child = new TextBlock { Text = text, Foreground = Theme.B(Theme.Ink), FontSize = 10, FontWeight = FontWeights.SemiBold } };
 
+        // One download per picture, shared by the result row, the detail panel and repeated searches (also while it is
+        // still downloading); the oldest are dropped past PictureCache.
+        private const int PictureCache = 300;
+        private readonly Dictionary<string, Task<BitmapImage>> pictures = new Dictionary<string, Task<BitmapImage>>();
+        private readonly Queue<string> pictureOrder = new Queue<string>();
+
+        private Task<BitmapImage> Picture(string key)
+        {
+            if (pictures.TryGetValue(key, out var cached)) return cached;
+            var task = DownloadPicture(key);
+            pictures[key] = task;
+            pictureOrder.Enqueue(key);
+            while (pictureOrder.Count > PictureCache) pictures.Remove(pictureOrder.Dequeue());
+            return task;
+        }
+
+        private async Task<BitmapImage> DownloadPicture(string key)
+        {
+            byte[] bytes = await session.Image(key);
+            if (bytes == null) return null;
+            var bitmap = new BitmapImage();
+            using (var stream = new MemoryStream(bytes))
+            {
+                bitmap.BeginInit(); bitmap.CacheOption = BitmapCacheOption.OnLoad; bitmap.StreamSource = stream; bitmap.EndInit();
+            }
+            bitmap.Freeze();
+            return bitmap;
+        }
+
         private async void LoadImage(string key, System.Windows.Controls.Image target)
         {
             try
             {
-                byte[] bytes = await session.Image(key);
-                if (bytes == null) return;
-                var bitmap = new BitmapImage();
-                using (var stream = new MemoryStream(bytes))
-                {
-                    bitmap.BeginInit(); bitmap.CacheOption = BitmapCacheOption.OnLoad; bitmap.StreamSource = stream; bitmap.EndInit();
-                }
-                bitmap.Freeze();
-                target.Source = bitmap;
+                var bitmap = await Picture(key);
+                if (bitmap == null) pictures.Remove(key);     // no picture yet: ask again next time
+                else target.Source = bitmap;
             }
-            catch (Exception ex) { PluginLog.Error(ex); }
+            catch (Exception ex) { pictures.Remove(key); PluginLog.Error(ex); }   // a failed download may be retried
         }
 
         private void ShowDetail(JObject item)
