@@ -317,9 +317,9 @@ def create_app(config, transport=None):
         import base64
         from fastapi import Response
         from .enrich import image
-        with engine.lock:
-            row = engine.db.execute('SELECT body FROM records WHERE key=?', (key,)).fetchone()
-            found = image(engine, key) if row else None
+        with engine.reading() as db:
+            row = db.execute('SELECT body FROM records WHERE key=?', (key,)).fetchone()
+            found = image(engine, key, db) if row else None
         import json as _json
         if not row or not found or not allowed(_json.loads(row['body']), p.get('grants', [])):
             raise HTTPException(404, 'Image not found')
@@ -407,19 +407,19 @@ def create_app(config, transport=None):
     @app.get('/api/samples')
     def samples(site_id: str, event_type: str | None = None, p=Depends(admin)):
         import json
-        with engine.lock:
+        with engine.reading() as db:
             query = "SELECT body FROM inbox WHERE json_extract(body,'$.site_id')=? AND status!='deleted'"
             args = [site_id]
             if event_type:
                 query += " AND json_extract(body,'$.event_type')=?"
                 args.append(event_type)
-            rows = engine.db.execute(query+' ORDER BY received DESC LIMIT 10', args).fetchall()
+            rows = db.execute(query+' ORDER BY received DESC LIMIT 10', args).fetchall()
         return [json.loads(r['body']) for r in rows]
 
     @app.get('/api/contexts')
     def contexts(p=Depends(admin)):
-        with engine.lock:
-            return [dict(r) for r in engine.db.execute('SELECT site_id,version,created FROM contexts ORDER BY created DESC')]
+        with engine.reading() as db:
+            return [dict(r) for r in db.execute('SELECT site_id,version,created FROM contexts ORDER BY created DESC')]
 
     @app.get('/api/contexts/{site_id}/latest')
     def latest_context(site_id: str, p=Depends(admin)):
@@ -430,8 +430,8 @@ def create_app(config, transport=None):
 
     @app.get('/api/records/{key}')
     def record(key: str, p=Depends(reader)):
-        with engine.lock:
-            row = engine.db.execute('SELECT body FROM records WHERE key=?', (key,)).fetchone()
+        with engine.reading() as db:
+            row = db.execute('SELECT body FROM records WHERE key=?', (key,)).fetchone()
         import json
         item = json.loads(row['body']) if row else None
         if item is None or not allowed(item, p.get('grants', [])):
@@ -494,11 +494,11 @@ def create_app(config, transport=None):
 
     @app.get('/api/operations')
     def operations(p=Depends(admin)):
-        with engine.lock:
-            errors = [dict(r) for r in engine.db.execute("SELECT key,error,received FROM inbox WHERE status='failed' LIMIT 100")]
-            audit = [dict(r) for r in engine.db.execute('SELECT * FROM audit ORDER BY id DESC LIMIT 100')]
-            pending = engine.db.execute("SELECT count(*) FROM reconciliation WHERE status='pending'").fetchone()[0]
-            reconciliation_errors = [dict(r) for r in engine.db.execute("SELECT key,error FROM reconciliation WHERE status='pending' AND error IS NOT NULL LIMIT 100")]
+        with engine.reading() as db:
+            errors = [dict(r) for r in db.execute("SELECT key,error,received FROM inbox WHERE status='failed' LIMIT 100")]
+            audit = [dict(r) for r in db.execute('SELECT * FROM audit ORDER BY id DESC LIMIT 100')]
+            pending = db.execute("SELECT count(*) FROM reconciliation WHERE status='pending'").fetchone()[0]
+            reconciliation_errors = [dict(r) for r in db.execute("SELECT key,error FROM reconciliation WHERE status='pending' AND error IS NOT NULL LIMIT 100")]
         return {**engine.status(), 'errors': errors, 'audit': audit, 'worker_error': worker_state['error'],
                 'reconciliation_pending': pending, 'reconciliation_errors': reconciliation_errors,
                 'database': engine.dialect, 'embedding_error': worker_state.get('embedding_error')}

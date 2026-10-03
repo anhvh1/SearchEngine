@@ -165,20 +165,22 @@ def link(engine, key, data, signature):
         db.execute('UPDATE record_links SET head=? WHERE key=?', (h, k))
 
 
-def episode_stats(engine, heads):
+def episode_stats(engine, heads, db=None):
     if not heads:
         return {}
+    db = db or engine.db
     marks = ','.join('?' * len(heads))
-    rows = engine.db.execute(f'''SELECT head, count(*) AS n, min(occurred_at) AS first, max(occurred_at) AS last,
+    rows = db.execute(f'''SELECT head, count(*) AS n, min(occurred_at) AS first, max(occurred_at) AS last,
         sum(CASE WHEN kind='alarm' THEN 1 ELSE 0 END) AS alarms FROM record_links WHERE head IN ({marks}) GROUP BY head''', heads).fetchall()
-    pictures = {r[0] for r in engine.db.execute(f'''SELECT DISTINCT l.head FROM record_links l JOIN media m ON m.key=l.key
+    pictures = {r[0] for r in db.execute(f'''SELECT DISTINCT l.head FROM record_links l JOIN media m ON m.key=l.key
         WHERE l.head IN ({marks})''', heads)}
     return {r[0]: {'count': r[1], 'first': r[2], 'last': r[3], 'alarms': r[4], 'image': r[0] in pictures} for r in rows}
 
 
-def image(engine, key):
+def image(engine, key, db=None):
     """Snapshot of the record or of any record in the same occurrence (the event usually carries it)."""
-    row = engine.db.execute('SELECT mime, data FROM media WHERE key=?', (key,)).fetchone() or engine.db.execute(
+    db = db or engine.db
+    row = db.execute('SELECT mime, data FROM media WHERE key=?', (key,)).fetchone() or db.execute(
         '''SELECT m.mime, m.data FROM media m JOIN record_links l ON l.key=m.key
            WHERE l.head=(SELECT head FROM record_links WHERE key=?) ORDER BY l.occurred_at LIMIT 1''', (key,)).fetchone()
     return (row[0], row[1]) if row else None
@@ -211,31 +213,41 @@ def cluster_templates(texts, min_samples=2):
 
 
 def learn_rules(engine, sample_size=300, min_samples=2):
-    """Learn text templates per event kind and per shared event id; returns the scopes that changed."""
-    changed = []
-    with engine.lock, engine.db:
-        scopes = [(r[0], r[1], "json_extract(body,'$.event_type')") for r in engine.db.execute('SELECT DISTINCT site_id, event_type FROM catalog')]
-        families = engine.db.execute("SELECT DISTINCT site_id, json_extract(body,'$.event_family') FROM records").fetchall()
-        scopes += [(r[0], r[1], "json_extract(body,'$.event_family')") for r in families if r[1]]
+    """Learn text templates per event kind and per shared event id; returns the scopes that changed.
+
+    Sampling and clustering run on a read connection without the writer lock (ingestion keeps flowing); only the
+    new rules and the re-index request are written under it."""
+    proposals = []
+    with engine.reading() as db:
+        scopes = [(r[0], r[1], 'event_type') for r in db.execute('SELECT DISTINCT site_id, event_type FROM catalog')]
+        scopes += [(r[0], r[1], 'event_family') for r in db.execute(
+            'SELECT DISTINCT site_id, event_family FROM records WHERE event_family IS NOT NULL') if r[1]]
         for site, scope, column in scopes:
-            rows = engine.db.execute(f'SELECT body FROM records WHERE site_id=? AND {column}=? ORDER BY occurred_at DESC LIMIT ?',
-                                     (site, scope, sample_size)).fetchall()
+            rows = db.execute(f'SELECT body FROM records WHERE site_id=? AND {column}=? ORDER BY occurred_at DESC LIMIT ?',
+                              (site, scope, sample_size)).fetchall()
             bodies = [json.loads(r[0]) for r in rows]
             for field in FIELDS:
                 texts = [t for t in (FIELDS[field](b, _raw_name(b)) for b in bodies) if t]
-                known = {r[0]: r[1] for r in engine.db.execute('SELECT template, status FROM rules WHERE site_id=? AND event_type=? AND field=?',
-                                                               (site, scope, field))}
+                known = {r[0] for r in db.execute('SELECT template FROM rules WHERE site_id=? AND event_type=? AND field=?', (site, scope, field))}
                 for template in cluster_templates(texts, min_samples):
-                    if template in known:
-                        continue
-                    matched = [t for t in dict.fromkeys(texts) if apply_template(template, t) is not None]
-                    version = engine.db.execute('SELECT coalesce(max(version),0)+1 FROM rules WHERE site_id=? AND event_type=? AND field=?',
-                                                (site, scope, field)).fetchone()[0]
-                    engine.db.execute('INSERT INTO rules VALUES(?,?,?,?,?,?,?,?,?,?)',
-                                      (site, scope, field, version, template, json.dumps(slot_roles(template, matched)), 'auto', 'active',
-                                       json.dumps(matched[:5], ensure_ascii=False), now()))
-                    engine.audit('system', 'rule.learned', {'site_id': site, 'event_type': scope, 'field': field, 'template': template})
-                    changed.append((site, scope, column))
+                    if template not in known:
+                        matched = [t for t in dict.fromkeys(texts) if apply_template(template, t) is not None]
+                        proposals.append((site, scope, column, field, template, matched))
+    changed = []
+    if not proposals:
+        return changed
+    with engine.lock, engine.db:
+        for site, scope, column, field, template, matched in proposals:
+            if engine.db.execute('SELECT 1 FROM rules WHERE site_id=? AND event_type=? AND field=? AND template=?',
+                                 (site, scope, field, template)).fetchone():
+                continue    # learned meanwhile by another run
+            version = engine.db.execute('SELECT coalesce(max(version),0)+1 FROM rules WHERE site_id=? AND event_type=? AND field=?',
+                                        (site, scope, field)).fetchone()[0]
+            engine.db.execute('INSERT INTO rules VALUES(?,?,?,?,?,?,?,?,?,?)',
+                              (site, scope, field, version, template, json.dumps(slot_roles(template, matched)), 'auto', 'active',
+                               json.dumps(matched[:5], ensure_ascii=False), now()))
+            engine.audit('system', 'rule.learned', {'site_id': site, 'event_type': scope, 'field': field, 'template': template})
+            changed.append((site, scope, column))
         for site, scope, column in dict.fromkeys(changed):
             engine.db.execute(f"UPDATE inbox SET status='pending',error=NULL WHERE status!='deleted' AND key IN (SELECT key FROM records WHERE site_id=? AND {column}=?)",
                               (site, scope))
@@ -249,8 +261,8 @@ def _raw_name(body):
 
 def list_rules(engine):
     """One entry per distinct template; 'members' are the stored rules it stands for."""
-    with engine.lock:
-        rows = [dict(zip(r.keys(), r)) for r in engine.db.execute("SELECT * FROM rules WHERE status!='retired' ORDER BY created DESC")]
+    with engine.reading() as db:
+        rows = [dict(zip(r.keys(), r)) for r in db.execute("SELECT * FROM rules WHERE status!='retired' ORDER BY created DESC")]
     grouped = {}
     for r in rows:
         entry = grouped.setdefault((r['template'], r['status']), {**r, 'roles': json.loads(r['roles']),
@@ -269,4 +281,4 @@ def set_rule_status(engine, site, event_type, field, version, status, actor):
             raise ValueError('Rule not found')
         engine.audit(actor, 'rule.' + status, {'site_id': site, 'event_type': event_type, 'field': field, 'version': version})
         engine.db.execute("""UPDATE inbox SET status='pending',error=NULL WHERE status!='deleted' AND key IN (SELECT key FROM records
-            WHERE site_id=? AND (json_extract(body,'$.event_type')=? OR json_extract(body,'$.event_family')=?))""", (site, event_type, event_type))
+            WHERE site_id=? AND (event_type=? OR event_family=?))""", (site, event_type, event_type))

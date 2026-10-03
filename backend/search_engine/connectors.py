@@ -114,8 +114,8 @@ class MilestoneRest:
 def process_reconciliation(engine, milestone):
     """Fetch current alarm state for queued changes; failures stay pending with a readable reason."""
     from .identity import LoginError, NotConfigured
-    with engine.lock:
-        jobs = engine.db.execute("SELECT key,body FROM reconciliation WHERE status='pending' ORDER BY received LIMIT 50").fetchall()
+    with engine.reading() as db:
+        jobs = db.execute("SELECT key,body FROM reconciliation WHERE status='pending' ORDER BY received LIMIT 50").fetchall()
     tokens = {}
     for job in jobs:
         data = json.loads(job['body'])

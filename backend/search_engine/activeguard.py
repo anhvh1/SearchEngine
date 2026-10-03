@@ -418,8 +418,8 @@ def milestone_alarm_for(engine, person, when):
     moment = datetime.fromisoformat(when.replace('Z', '+00:00'))
     low = (moment - timedelta(seconds=ALARM_MATCH_SECONDS)).strftime('%Y-%m-%dT%H:%M:%S')
     high = (moment + timedelta(seconds=ALARM_MATCH_SECONDS + 1)).strftime('%Y-%m-%dT%H:%M:%S')
-    with engine.lock:
-        rows = engine.db.execute(
+    with engine.reading() as db:
+        rows = db.execute(
             """SELECT r.key, r.occurred_at FROM records r JOIN attributes a ON a.key=r.key
                WHERE r.kind='alarm' AND a.role='person' AND a.folded=? AND r.occurred_at>=? AND r.occurred_at<?
                  AND NOT EXISTS (SELECT 1 FROM media m WHERE m.key=r.key)""", (person, low, high)).fetchall()

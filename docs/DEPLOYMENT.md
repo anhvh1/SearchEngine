@@ -17,6 +17,10 @@ Các role backend:
 
 Thu hồi/đổi token hoặc quyền trong cấu hình yêu cầu khởi động lại backend. Đây là cơ chế quyền ứng dụng riêng; không phải SSO hoặc đồng bộ quyền Milestone. Không dùng collector token làm tài khoản người dùng.
 
+**Đọc và ghi đồng thời (PostgreSQL).** Việc ghi (nhập dữ liệu, xử lý, học quy tắc) dùng một kết nối và chạy tuần tự; việc đọc (tìm kiếm, ảnh, trạng thái) dùng tối đa 8 kết nối riêng và không chờ việc ghi. Backend cần thêm 9 kết nối PostgreSQL, trong giới hạn mặc định `max_connections = 100`. SQLite chỉ có một kết nối nên vẫn đọc tuần tự (chỉ dùng thử nghiệm).
+
+**Lần khởi động đầu sau khi nâng cấp lên bản 2026-10-03** backend tự thêm hai cột `event_type`, `event_family` vào `records`, điền cho bản ghi cũ, tạo chỉ mục rồi dọn bảng (`VACUUM`). Việc này chạy một lần; với khoảng 1 triệu bản ghi có thể mất vài phút, trong lúc đó backend chưa nhận yêu cầu, plugin Event Server giữ alarm trong hàng đợi và gửi lại sau.
+
 ## Backend dạng Windows service (exe)
 
 Build: `./scripts/build-backend.ps1` tạo `dist/MilestoneSearch.Backend-<thời gian>.zip` (một file `MilestoneSearch.Backend.exe`, không cần cài Python) và `dist/MilestoneSearch.Backend-source-<thời gian>.zip` (mã nguồn backend, web, test, script build).

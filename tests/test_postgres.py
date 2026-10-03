@@ -139,3 +139,36 @@ def test_postgres_extraction_templates_and_occurrences(pg_dsn):
         assert late['total'] == 2 and {p['name'] for p in late['facets']['people']} == {'Trần Thị Bích Ngọc', 'Le Van Hai'}
     finally:
         e.close()
+
+
+def test_reads_never_wait_for_a_writer(pg_dsn):
+    """The system writes 24/7: searches, status and pictures must not queue behind ingestion or a long write."""
+    import threading
+    import time
+    from search_engine.store import Engine
+    e = Engine(pg_dsn)
+    held, release = threading.Event(), threading.Event()
+    try:
+        for i in range(3):
+            e.ingest(event(f'r{i}'))
+        while e.process_pending():
+            pass
+        def long_write():
+            with e.lock, e.db:
+                e.db.execute("UPDATE checkpoints SET value=value WHERE name='none'")
+                held.set()
+                release.wait(15)
+        writer = threading.Thread(target=long_write)
+        writer.start()
+        assert held.wait(5)
+        started = time.perf_counter()
+        found = e.search('', [['*', '*']], facets=True, collapse=True)
+        status = e.status()
+        elapsed = time.perf_counter() - started
+        release.set()
+        writer.join()
+        assert found['total'] >= 1 and found['items'] and status['records'] == 3
+        assert elapsed < 2, f'reads waited {elapsed:.1f}s for the writer lock'
+    finally:
+        release.set()
+        e.close()

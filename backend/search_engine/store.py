@@ -1,8 +1,10 @@
-"""Single-node durable index. All writes share a lock and explicit transactions."""
+"""Single-node durable index. Writes share a lock and explicit transactions; reads use pooled connections (see Engine.reading)."""
 import hashlib
 import json
 import re
 import sqlite3
+import contextlib
+import queue
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
@@ -77,9 +79,12 @@ def embedding_text(item):
 
 class Engine:
     SCHEMA_VERSION = 1
+    READERS = 8     # concurrent read connections (PostgreSQL); searches, pictures and status never queue behind writes
     def __init__(self, path):
+        # self.lock serialises writers on self.db; readers use their own connections (see reading()).
         self.lock = threading.RLock()
         self.dialect, self.db = connect(path)
+        self._target, self._readers, self._reader_count, self._reader_guard = path, queue.LifoQueue(), 0, threading.Lock()
         self.db.executescript('''
         PRAGMA journal_mode=WAL;
         PRAGMA foreign_keys=ON;
@@ -131,12 +136,93 @@ class Engine:
                 import logging
                 logging.warning('PostgreSQL extension "vector" unavailable (%s); semantic index off, text and voice search unaffected',
                                 str(exc).splitlines()[0])
+        self._search_schema()
+
+    def _search_schema(self):
+        """Columns and indexes search relies on at scale; added in place to databases created by earlier versions."""
+        import logging
+        columns = ({r[1] for r in self.db.execute('PRAGMA table_info(records)')} if self.dialect == 'sqlite' else
+                   {r[0] for r in self.db.execute("SELECT column_name FROM information_schema.columns WHERE table_name='records' AND table_schema=current_schema()")})
+        added = [c for c in ('event_type', 'event_family') if c not in columns]
+        for column in added:
+            # Real columns: filters, the event-type facet and rule learning otherwise parse every record's JSON body.
+            self.db.execute(f'ALTER TABLE records ADD COLUMN {column} TEXT')
+        filled = 0
+        with self.lock, self.db:
+            for column in ('event_type', 'event_family'):
+                filled += self.db.execute(f"UPDATE records SET {column}=json_extract(body,'$.{column}') WHERE {column} IS NULL").rowcount
+        if filled:
+            logging.info('records.event_type filled for %d existing records', filled)
+        for statement in ('CREATE INDEX IF NOT EXISTS record_time ON records(occurred_at)',
+                          'CREATE INDEX IF NOT EXISTS record_event ON records(event_type, occurred_at)',
+                          'CREATE INDEX IF NOT EXISTS record_family ON records(event_family, occurred_at)',
+                          'CREATE INDEX IF NOT EXISTS inbox_pending ON inbox(status, received)',
+                          'CREATE INDEX IF NOT EXISTS inbox_received ON inbox(received)'):
+            self.db.execute(statement)
+        if self.dialect == 'postgresql':
+            # Attribute (role, value) pairs are strongly correlated ("gender"/"male" is common, not rare); without these
+            # statistics the planner expects a few hundred rows and walks tens of thousands through nested loops.
+            self.db.execute('CREATE STATISTICS IF NOT EXISTS attributes_role_folded (ndistinct, dependencies, mcv) ON role, folded FROM attributes')
+            if filled or added:
+                # Filling the new columns rewrote every row: reclaim the old versions now, or every search and status
+                # call visits them until autovacuum gets round to it (measured: status 37 ms -> 327 ms on 60k records).
+                logging.info('Vacuuming records after the one-time column fill')
+                self.db.execute('VACUUM (ANALYZE) records'); self.db.execute('ANALYZE attributes')
+        else:
+            self.db.commit()
 
     def close(self):
         # Background workers run in threads; wait for the one holding the connection before closing it.
         with self.lock:
             self.closed = True
             self.db.close()
+        while True:
+            try:
+                self._readers.get_nowait().close()
+            except queue.Empty:
+                break
+
+    @contextlib.contextmanager
+    def reading(self):
+        """A connection for reads only. On PostgreSQL it is one of up to READERS pooled connections in a REPEATABLE READ
+        transaction: it never waits for the writer (MVCC) and count, page and facets of one search see the same snapshot.
+        SQLite has a single connection, so there reads still take the writer lock."""
+        if self.dialect != 'postgresql':
+            with self.lock:
+                yield self.db
+            return
+        conn = self._take_reader()
+        try:
+            with conn.connection.transaction():
+                yield conn
+        finally:
+            if conn.connection.closed or conn.connection.broken:
+                with self._reader_guard:
+                    self._reader_count -= 1
+            else:
+                self._readers.put(conn)
+
+    def _take_reader(self):
+        try:
+            return self._readers.get_nowait()
+        except queue.Empty:
+            pass
+        with self._reader_guard:
+            create = self._reader_count < self.READERS
+            if create:
+                self._reader_count += 1
+        if not create:
+            return self._readers.get(timeout=120)
+        try:
+            from .database import PostgresConnection
+            import psycopg
+            conn = PostgresConnection(self._target)
+            conn.connection.isolation_level = psycopg.IsolationLevel.REPEATABLE_READ
+            return conn
+        except Exception:
+            with self._reader_guard:
+                self._reader_count -= 1
+            raise
 
     def save_embedding(self, key, model, content_hash, vector, expected_body=None):
         import math
@@ -158,8 +244,8 @@ class Engine:
             if value is not None:
                 clauses.append(f'r.{name}=?'); args.append(value)
         if request.event_type:
-            clauses.append("json_extract(body,'$.event_type')=?"); args.append(request.event_type)
-        for column, values in (("json_extract(body,'$.event_type')", request.event_types), ('r.source_id', request.source_ids)):
+            clauses.append('r.event_type=?'); args.append(request.event_type)
+        for column, values in (('r.event_type', request.event_types), ('r.source_id', request.source_ids)):
             if values:
                 clauses.append(f"{column} IN ({','.join('?' * len(values))})"); args.extend(values)
         for name, sign in [('start', '>='), ('end', '<=')]:
@@ -167,12 +253,12 @@ class Engine:
             if value:
                 clauses.append(f'r.occurred_at{sign}?'); args.append(value.isoformat(timespec='microseconds').replace('+00:00','Z'))
         where = ' AND '.join(clauses)
-        with self.lock:
-            available = self.db.execute(f'SELECT count(*) FROM records r WHERE {where}', args).fetchone()[0]
+        with self.reading() as db:
+            available = db.execute(f'SELECT count(*) FROM records r WHERE {where}', args).fetchone()[0]
             join = f'FROM records r JOIN embeddings e ON e.key=r.key WHERE {where} AND e.model=? AND public.vector_dims(e.embedding)=?'
             params = [*args, model, len(vector)]
-            count = self.db.execute('SELECT count(*) '+join, params).fetchone()[0]
-            rows = self.db.execute('SELECT r.body,1-(e.embedding OPERATOR(public.<=>) ?::public.vector) AS score '+join+
+            count = db.execute('SELECT count(*) '+join, params).fetchone()[0]
+            rows = db.execute('SELECT r.body,1-(e.embedding OPERATOR(public.<=>) ?::public.vector) AS score '+join+
                                    ' ORDER BY score DESC,r.key LIMIT ? OFFSET ?', [dumps(vector),*params,request.limit,request.offset]).fetchall()
         return {'items': [{**json.loads(r['body']), 'score': r['score']} for r in rows], 'total': count,
                 'unindexed': available-count, 'mode': 'semantic', 'limit': request.limit, 'offset': request.offset}
@@ -193,8 +279,8 @@ class Engine:
         return version
 
     def latest_context(self, site_id):
-        with self.lock:
-            row = self.db.execute(
+        with self.reading() as db:
+            row = db.execute(
                 'SELECT site_id,version,body,created FROM contexts WHERE site_id=? ORDER BY created DESC LIMIT 1',
                 (site_id,)).fetchone()
         if not row:
@@ -270,9 +356,9 @@ class Engine:
             self.audit(actor, 'profile.activate', {'id': id, 'version': version})
 
     def list_profiles(self):
-        with self.lock:
+        with self.reading() as db:
             return [{**json.loads(r['body']), 'status': r['status'], 'activated': r['activated']}
-                    for r in self.db.execute('SELECT * FROM profiles ORDER BY id,version DESC')]
+                    for r in db.execute('SELECT * FROM profiles ORDER BY id,version DESC')]
 
     def process_pending(self, limit=100):
         with self.lock, self.db:
@@ -322,12 +408,13 @@ class Engine:
                     self.db.execute('DELETE FROM vectors WHERE key=?', (key,))
                     if self.pgvector:
                         self.db.execute('DELETE FROM embeddings WHERE key=?', (key,))
-                self.db.execute('''INSERT INTO records VALUES(?,?,?,?,?,?,?,?,?)
+                self.db.execute('''INSERT INTO records(key,site_id,source_id,kind,family,state,occurred_at,updated_at,body,event_type,event_family)
+                    VALUES(?,?,?,?,?,?,?,?,?,?,?)
                     ON CONFLICT(key) DO UPDATE SET site_id=excluded.site_id,source_id=excluded.source_id,
                     kind=excluded.kind,family=excluded.family,state=excluded.state,occurred_at=excluded.occurred_at,
-                    updated_at=excluded.updated_at,body=excluded.body''',
+                    updated_at=excluded.updated_at,body=excluded.body,event_type=excluded.event_type,event_family=excluded.event_family''',
                     (key, data['site_id'], data['source_id'], data['kind'], result['family'], data['state'],
-                     data['occurred_at'], data['updated_at'], dumps(result)))
+                     data['occurred_at'], data['updated_at'], dumps(result), result['event_type'], result['event_family']))
                 content = ' '.join([data['message'], data['description'], data['event_type'], data['location'],
                                     result['event_name'], result['source_name'], data['state'], data['priority'],
                                     result['family'], dumps(result['attributes']), extracted])
@@ -352,9 +439,9 @@ class Engine:
                 clauses.append(f'{name}=?')
                 args.append(value)
         if request.event_type:
-            clauses.append("json_extract(body,'$.event_type')=?")
+            clauses.append('event_type=?')
             args.append(request.event_type)
-        for column, values in (("json_extract(body,'$.event_type')", request.event_types), ('source_id', request.source_ids)):
+        for column, values in (('event_type', request.event_types), ('source_id', request.source_ids)):
             if values:
                 clauses.append(f"{column} IN ({','.join('?' * len(values))})")
                 args.extend(values)
@@ -366,9 +453,11 @@ class Engine:
         if request.entities:
             clauses.append(f"key IN (SELECT key FROM attributes WHERE role IN ('person','plate','watchlist') AND folded IN ({','.join('?' * len(request.entities))}))")
             args.extend(request.entities)
-        for role, value in request.facts or []:
-            clauses.append('key IN (SELECT key FROM attributes WHERE role=? AND folded=?)')
-            args.extend([role, fold(value)])
+        if request.facts:
+            # One set operation over the attribute index instead of a nested IN per fact.
+            clauses.append('key IN (' + ' INTERSECT '.join('SELECT key FROM attributes WHERE role=? AND folded=?' for _ in request.facts) + ')')
+            for role, value in request.facts:
+                args.extend([role, fold(value)])
         tokens = re.findall(r'\w+', fold(query), flags=re.UNICODE)
         if tokens:
             if self.dialect == 'postgresql':
@@ -378,50 +467,69 @@ class Engine:
                 clauses.append('key IN (SELECT key FROM record_fts WHERE record_fts MATCH ?)')
                 args.append(' AND '.join('"' + token + '"' for token in tokens[:64]))
         where = ' AND '.join(clauses)
+        # The matching set is computed once into a temporary table; count, page and facets all read it instead of each
+        # re-running the whole filter (and, collapsed, the occurrence grouping) over every match.
         if request.collapse:
             # One row per occurrence: an event, its alarm and repeats at the same camera count once.
-            where = f'key IN (SELECT DISTINCT head FROM record_links WHERE key IN (SELECT key FROM records WHERE {where}))'
-        with self.lock:
-            total = self.db.execute(f'SELECT count(*) FROM records WHERE {where}', args).fetchone()[0]
-            rows = self.db.execute(f'SELECT body FROM records WHERE {where} ORDER BY occurred_at DESC,key LIMIT ? OFFSET ?',
-                                   [*args, request.limit, request.offset]).fetchall()
-            items = [json.loads(r['body']) for r in rows]
-            if request.collapse:
-                from .enrich import episode_stats
-                stats = episode_stats(self, [i['key'] for i in items])
-                for i in items:
-                    i['episode'] = stats.get(i['key'])
-            result = {'total': total, 'items': items, 'limit': request.limit, 'offset': request.offset}
-            if facets and total:
-                people = self.db.execute(f"""SELECT folded, max(value) AS name, count(DISTINCT key) AS n FROM attributes WHERE role='person'
-                    AND key IN (SELECT key FROM records WHERE {where}) GROUP BY folded ORDER BY n DESC LIMIT 8""", args).fetchall()
-                result['facets'] = {'people': [{'id': r[0], 'name': self._entity_name(r[0], r[1]), 'count': r[2]} for r in people],
-                    'event_types': self._facet(f"SELECT site_id, json_extract(body,'$.event_type') AS id, count(*) AS n FROM records WHERE {where} GROUP BY site_id, json_extract(body,'$.event_type') ORDER BY n DESC LIMIT 8", args, 'event_type'),
-                    'sources': self._facet(f'SELECT site_id, source_id AS id, count(*) AS n FROM records WHERE {where} GROUP BY site_id, source_id ORDER BY n DESC LIMIT 8', args, 'source')}
-            return result
+            fill = f'SELECT DISTINCT l.head AS key FROM record_links l WHERE l.key IN (SELECT key FROM records WHERE {where})'
+        else:
+            fill = f'SELECT key FROM records WHERE {where}'
+        postgres = self.dialect == 'postgresql'
+        with self.reading() as db:
+            if not postgres:
+                db.execute('DROP TABLE IF EXISTS temp.search_hits')
+            try:
+                db.execute(('CREATE TEMP TABLE search_hits ON COMMIT DROP AS ' if postgres else 'CREATE TEMP TABLE search_hits AS ') + fill, args)
+                total = db.execute('SELECT count(*) FROM search_hits').fetchone()[0]
+                # Order and page on (time, key) alone; only the requested page's bodies are read.
+                rows = db.execute(
+                    'SELECT r.body FROM records r JOIN (SELECT r2.key FROM records r2 JOIN search_hits h ON h.key=r2.key '
+                    'ORDER BY r2.occurred_at DESC, r2.key LIMIT ? OFFSET ?) page ON page.key=r.key ORDER BY r.occurred_at DESC, r.key',
+                    (request.limit, request.offset)).fetchall()
+                items = [json.loads(r['body']) for r in rows]
+                if request.collapse:
+                    from .enrich import episode_stats
+                    stats = episode_stats(self, [i['key'] for i in items], db)
+                    for i in items:
+                        i['episode'] = stats.get(i['key'])
+                result = {'total': total, 'items': items, 'limit': request.limit, 'offset': request.offset}
+                if facets and total:
+                    people = db.execute(
+                        "SELECT a.folded, max(a.value) AS name, count(DISTINCT a.key) AS n FROM attributes a JOIN search_hits h "
+                        "ON h.key=a.key WHERE a.role='person' GROUP BY a.folded ORDER BY n DESC LIMIT 8").fetchall()
+                    result['facets'] = {
+                        'people': [{'id': r[0], 'name': self._entity_name(db, r[0], r[1]), 'count': r[2]} for r in people],
+                        'event_types': self._facet(db, 'SELECT r.site_id, r.event_type AS id, count(*) AS n FROM records r JOIN search_hits h '
+                                                       'ON h.key=r.key GROUP BY r.site_id, r.event_type ORDER BY n DESC LIMIT 8', 'event_type'),
+                        'sources': self._facet(db, 'SELECT r.site_id, r.source_id AS id, count(*) AS n FROM records r JOIN search_hits h '
+                                                   'ON h.key=r.key GROUP BY r.site_id, r.source_id ORDER BY n DESC LIMIT 8', 'source')}
+                return result
+            finally:
+                if not postgres:
+                    db.execute('DROP TABLE IF EXISTS temp.search_hits')
 
-    def _entity_name(self, folded, fallback):
-        row = self.db.execute("SELECT name FROM names WHERE kind='person' AND id=?", (folded,)).fetchone()
+    def _entity_name(self, db, folded, fallback):
+        row = db.execute("SELECT name FROM names WHERE kind='person' AND id=?", (folded,)).fetchone()
         return row[0] if row else fallback
 
-    def _facet(self, query, args, kind):
-        rows = self.db.execute(query, args).fetchall()
+    def _facet(self, db, query, kind):
+        rows = db.execute(query).fetchall()
         out = []
         for r in rows:
-            name = self.db.execute('SELECT name FROM names WHERE site_id=? AND kind=? AND id=?', (r['site_id'], kind, r['id'])).fetchone()
+            name = db.execute('SELECT name FROM names WHERE site_id=? AND kind=? AND id=?', (r['site_id'], kind, r['id'])).fetchone()
             out.append({'id': r['id'], 'name': name[0] if name else r['id'], 'count': r['n']})
         return out
 
     def has_key(self, key):
-        with self.lock:
-            return self.db.execute('SELECT 1 FROM inbox WHERE key=?', (key,)).fetchone() is not None
+        with self.reading() as db:
+            return db.execute('SELECT 1 FROM inbox WHERE key=?', (key,)).fetchone() is not None
 
     def records_by_keys(self, keys):
         """Processed records in the order requested; keys still waiting in the inbox are skipped."""
         out = []
-        with self.lock:
+        with self.reading() as db:
             for key in keys:
-                row = self.db.execute('SELECT body FROM records WHERE key=?', (key,)).fetchone()
+                row = db.execute('SELECT body FROM records WHERE key=?', (key,)).fetchone()
                 if row:
                     out.append(json.loads(row['body']))
         return out
@@ -433,11 +541,11 @@ class Engine:
             return count
 
     def status(self):
-        with self.lock:
-            states = dict(self.db.execute('SELECT status,count(*) FROM inbox GROUP BY status').fetchall())
+        with self.reading() as db:
+            states = dict(db.execute('SELECT status,count(*) FROM inbox GROUP BY status').fetchall())
             return {**{'pending': 0, 'done': 0, 'failed': 0, 'deleted': 0}, **states,
-                    'records': self.db.execute('SELECT count(*) FROM records').fetchone()[0],
-                    'last_received': self.db.execute('SELECT max(received) FROM inbox').fetchone()[0]}
+                    'records': db.execute('SELECT count(*) FROM records').fetchone()[0],
+                    'last_received': db.execute('SELECT max(received) FROM inbox').fetchone()[0]}
 
     INDEX_VERSION = 4
 
@@ -451,8 +559,8 @@ class Engine:
         return count
 
     def catalog(self):
-        with self.lock:
-            rows = self.db.execute('''SELECT c.*, e.name AS event_name, s.name AS source_name FROM catalog c
+        with self.reading() as db:
+            rows = db.execute('''SELECT c.*, e.name AS event_name, s.name AS source_name FROM catalog c
                 LEFT JOIN names e ON e.site_id=c.site_id AND e.kind='event_type' AND e.id=c.event_type
                 LEFT JOIN names s ON s.site_id=c.site_id AND s.kind='source' AND s.id=c.source_id
                 ORDER BY c.last_seen DESC''').fetchall()
@@ -461,8 +569,8 @@ class Engine:
     def sources(self, grants):
         """Sources and event types the caller may search, with display names."""
         clause, args = grant_clause(grants, 'c.')
-        with self.lock:
-            rows = self.db.execute(f'''SELECT c.site_id, c.source_id, c.event_type, max(c.last_seen) AS last_seen,
+        with self.reading() as db:
+            rows = db.execute(f'''SELECT c.site_id, c.source_id, c.event_type, max(c.last_seen) AS last_seen,
                 max(e.name) AS event_name, max(s.name) AS source_name FROM catalog c
                 LEFT JOIN names e ON e.site_id=c.site_id AND e.kind='event_type' AND e.id=c.event_type
                 LEFT JOIN names s ON s.site_id=c.site_id AND s.kind='source' AND s.id=c.source_id
@@ -474,8 +582,8 @@ class Engine:
         sites = sorted({site for site, _ in sources})
         people = {}
         if sites:
-            with self.lock:
-                for kind, id, name in self.db.execute(
+            with self.reading() as db:
+                for kind, id, name in db.execute(
                         f"SELECT kind, id, name FROM names WHERE kind IN ('person','plate','watchlist') AND site_id IN ({','.join('?' * len(sites))})", sites):
                     people.setdefault((kind, id), name)
         return {'sites': sites,

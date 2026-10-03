@@ -90,9 +90,9 @@ class Milestone:
         return json.loads(value) if value else {}
 
     def site_ids(self):
-        with self.engine.lock:
-            seen = {r[0] for r in self.engine.db.execute('SELECT DISTINCT site_id FROM catalog')}
-            saved = {r[0][len('milestone:'):] for r in self.engine.db.execute("SELECT name FROM checkpoints WHERE name LIKE ?", ('milestone:%',))}
+        with self.engine.reading() as db:
+            seen = {r[0] for r in db.execute('SELECT DISTINCT site_id FROM catalog')}
+            saved = {r[0][len('milestone:'):] for r in db.execute("SELECT name FROM checkpoints WHERE name LIKE ?", ('milestone:%',))}
         return sorted(seen | saved | set(self.config.get('milestone', {})))
 
     def settings(self, site):

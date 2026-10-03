@@ -81,14 +81,14 @@ def suggest_rules(engine, config, limit=5):
     from .extract import apply_template
     from .store import now
     proposals = []
-    with engine.lock:
-        kinds = engine.db.execute("""SELECT DISTINCT site_id, json_extract(body,'$.event_type') FROM records
-            WHERE json_extract(body,'$.event_type') NOT IN (SELECT event_type FROM rules WHERE status IN ('active','proposed'))
+    with engine.reading() as db:
+        kinds = db.execute("""SELECT DISTINCT site_id, event_type FROM records
+            WHERE event_type NOT IN (SELECT event_type FROM rules WHERE status IN ('active','proposed'))
             LIMIT ?""", (limit,)).fetchall()
     for site, kind in kinds:
-        with engine.lock:
-            bodies = [_json.loads(r[0]) for r in engine.db.execute(
-                "SELECT body FROM records WHERE site_id=? AND json_extract(body,'$.event_type')=? ORDER BY occurred_at DESC LIMIT 20", (site, kind))]
+        with engine.reading() as db:
+            bodies = [_json.loads(r[0]) for r in db.execute(
+                "SELECT body FROM records WHERE site_id=? AND event_type=? ORDER BY occurred_at DESC LIMIT 20", (site, kind))]
         for field in FIELDS:
             texts = list(dict.fromkeys(t for t in (FIELDS[field](b, _raw_name(b)) for b in bodies) if t))[:5]
             if not texts or not any(any(ch.isdigit() for ch in t) or sum(w[:1].isupper() for w in t.split()) >= 3 for t in texts):
@@ -171,8 +171,8 @@ def semantic_search(engine, request, grants, config):
     for item in result['items']:
         text = embedding_text(item)
         digest = hashlib.sha256(text.encode()).hexdigest()
-        with engine.lock:
-            cached = engine.db.execute('SELECT * FROM vectors WHERE key=? AND model=? AND content_hash=?',
+        with engine.reading() as db:
+            cached = db.execute('SELECT * FROM vectors WHERE key=? AND model=? AND content_hash=?',
                                        (item['key'], config['embedding_model'], digest)).fetchone()
         vector = json.loads(cached['vector']) if cached else embed(config, [text])[0]
         if not cached:
@@ -197,8 +197,8 @@ def index_pending(engine, config, limit=32):
     if engine.dialect != 'postgresql' or not engine.pgvector or not config.get('embedding_model'):
         return 0
     model = config['embedding_model']
-    with engine.lock:
-        rows = engine.db.execute('SELECT r.key,r.body FROM records r LEFT JOIN embeddings e ON e.key=r.key AND e.model=? WHERE e.key IS NULL ORDER BY r.key LIMIT ?', (model, limit)).fetchall()
+    with engine.reading() as db:
+        rows = db.execute('SELECT r.key,r.body FROM records r LEFT JOIN embeddings e ON e.key=r.key AND e.model=? WHERE e.key IS NULL ORDER BY r.key LIMIT ?', (model, limit)).fetchall()
     if not rows:
         return 0
     texts = []
