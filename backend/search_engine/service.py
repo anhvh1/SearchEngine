@@ -221,8 +221,24 @@ def share_collector_token(config):
     readers = ['*S-1-5-18:F', '*S-1-5-32-544:F', '*S-1-5-20:R', '*S-1-5-19:R']
     account = event_server_account()
     if account and account.lower() not in ('localsystem', 'nt authority\\networkservice', 'nt authority\\localservice'):
-        readers.append(account + ':R')
+        sid = account_sid(account)
+        if sid:
+            readers.append(f'*{sid}:R')
+        else:
+            print(f'Collector token: the Event Server account "{account}" was not found. It can still read the token if it is '
+                  'an administrator; otherwise set MILESTONE_SEARCH_COLLECTOR_TOKEN for it.')
     subprocess.run(['icacls', str(COLLECTOR_TOKEN), '/inheritance:r', '/grant:r', *readers], check=True, stdout=subprocess.DEVNULL)
+
+
+def account_sid(account):
+    """SID ('S-1-5-21-...') of a service account, or None. The service manager writes local accounts as '.\\name',
+    which icacls cannot resolve ("No mapping between account names and security IDs"), so look the SID up here."""
+    import win32security
+    name = os.environ.get('COMPUTERNAME', '') + account[1:] if account.startswith('.\\') else account
+    try:
+        return win32security.ConvertSidToStringSid(win32security.LookupAccountName(None, name)[0])
+    except Exception:
+        return None
 
 
 # Every private (RFC 1918) range plus the local subnet: operator PCs in other VLANs of the same LAN must reach the
