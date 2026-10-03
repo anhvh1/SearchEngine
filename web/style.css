@@ -139,3 +139,4 @@ body.has-results .hero-head{display:none}
 [hidden]{display:none!important}
 @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 @media (max-width:600px){main{padding-top:24px}.data-status{display:none}.result{gap:10px}.detail dl{grid-template-columns:1fr}.hero-head h1{font-size:26px}}
+.danger-zone{margin-top:22px;padding:16px;border:1px solid rgba(255,95,109,.35);border-radius:12px;background:rgba(255,95,109,.06)}.danger-zone h3{margin:0 0 4px;font-size:15px;color:var(--red)}.danger{margin-top:14px;background:var(--red);color:#fff;border-color:transparent}.danger:hover{filter:brightness(1.1);background:var(--red);color:#fff}.danger:disabled{opacity:.45;cursor:not-allowed;filter:none}

@@ -271,8 +271,38 @@ async function operations() {
   $('conn-site').onchange = fill; fill();
   $('operations-output').textContent = JSON.stringify(ops, null, 2);
   $('rules-suggest').hidden = !caps.chat;
-  await Promise.all([showRules(), showActiveGuard()]);
+  await Promise.all([showRules(), showActiveGuard(), showRetention()]);
 }
+const bytes = n => n >= 1073741824 ? `${(n / 1073741824).toLocaleString('vi-VN', {maximumFractionDigits: 1})} GB` : n >= 1048576 ? `${Math.round(n / 1048576).toLocaleString('vi-VN')} MB` : 'dưới 1 MB';
+const day = v => v ? new Date(v).toLocaleDateString('vi-VN') : '—';
+async function showRetention() {
+  const r = await api('/settings/retention');
+  $('retention-days').value = r.days;
+  $('retention-span').textContent = r.records
+    ? `Đang lưu ${r.records.toLocaleString('vi-VN')} sự kiện (${r.pictures.toLocaleString('vi-VN')} ảnh), từ ${day(r.oldest)} đến ${day(r.newest)} · dung lượng ${bytes(r.size_bytes)}.`
+    : `Chưa có dữ liệu · dung lượng ${bytes(r.size_bytes)}.`;
+  $('retention-status').textContent = r.days ? `Đang giữ ${r.days} ngày${r.source === 'config' ? ' (theo file cấu hình)' : ''}.` : 'Đang giữ mãi, không tự xóa.';
+}
+$('retention-form').onsubmit = async e => {
+  e.preventDefault();
+  const days = Number($('retention-days').value);
+  if (days && !confirm(`Xóa vĩnh viễn mọi dữ liệu cũ hơn ${days} ngày, và từ nay tự xóa mỗi giờ?`)) return;
+  try { await api('/settings/retention', {days}, 'PUT'); await showRetention(); notice(days ? `Đã lưu. Dữ liệu cũ hơn ${days} ngày sẽ được xóa trong ít phút.` : 'Đã lưu: giữ mọi dữ liệu.'); }
+  catch (err) { $('retention-status').textContent = err.message; }
+};
+$('wipe-confirm').oninput = () => { $('wipe-form').querySelector('button').disabled = $('wipe-confirm').value.normalize('NFC').trim().toUpperCase() !== 'XÓA'; };
+$('wipe-confirm').oninput();
+$('wipe-form').onsubmit = async e => {
+  e.preventDefault();
+  if (!confirm('Xóa toàn bộ sự kiện, alarm và ảnh của tool? Không hoàn tác được.')) return;
+  $('wipe-status').textContent = 'Đang xóa…';
+  try {
+    const r = await api('/operations/wipe', {confirm: $('wipe-confirm').value}, 'POST');
+    $('wipe-confirm').value = ''; $('wipe-confirm').oninput(); dropImages();
+    $('wipe-status').textContent = `Đã xóa ${r.deleted.records.toLocaleString('vi-VN')} sự kiện và ${r.deleted.pictures.toLocaleString('vi-VN')} ảnh.`;
+    await operations();
+  } catch (err) { $('wipe-status').textContent = err.message; }
+};
 async function showActiveGuard() {
   const s = await api('/settings/activeguard');
   $('ag-sync').hidden = !s.servers.some(x => x.has_credentials);

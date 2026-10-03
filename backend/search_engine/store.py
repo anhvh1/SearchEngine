@@ -598,16 +598,66 @@ class Engine:
             row = self.db.execute('SELECT value FROM checkpoints WHERE name=?', (name,)).fetchone()
             return row[0] if row else None
 
-    def purge(self, before, actor='system'):
-        """Delete expired content but retain identity/revision tombstones against replay."""
+    def data_span(self):
+        """How much is stored, for the retention setting: oldest and newest record, count and database size."""
+        with self.reading() as db:
+            oldest, newest, count = db.execute('SELECT min(occurred_at), max(occurred_at), count(*) FROM records').fetchone()
+            pictures = db.execute('SELECT count(*) FROM media').fetchone()[0]
+            if self.dialect == 'postgresql':
+                size = db.execute('SELECT pg_database_size(current_database())').fetchone()[0]
+            else:
+                size = db.execute('SELECT page_count * page_size FROM pragma_page_count(), pragma_page_size()').fetchone()[0]
+        return {'oldest': oldest, 'newest': newest, 'records': count, 'pictures': pictures, 'size_bytes': size}
+
+    CONTENT_TABLES = ('records', 'record_fts', 'vectors', 'attributes', 'record_links', 'media')
+
+    def purge(self, before, actor='system', batch=2000):
+        """Delete content older than `before` but keep identity/revision tombstones against replay.
+
+        Expired records are found through the occurred_at index and removed a batch at a time, so the writer lock is
+        held only briefly and ingestion keeps flowing; records already purged are never visited again."""
         cutoff = Envelope.timezone_required(datetime.fromisoformat(before.replace('Z', '+00:00'))).isoformat(timespec='microseconds').replace('+00:00', 'Z')
+        total = 0
+        while True:
+            with self.reading() as db:
+                keys = [r[0] for r in db.execute('SELECT key FROM records WHERE occurred_at<? ORDER BY occurred_at LIMIT ?', (cutoff, batch))]
+                if not keys:
+                    # Envelopes that never became records (failed processing) still hold payload and pictures.
+                    keys = [r[0] for r in db.execute("SELECT key FROM inbox WHERE status='failed' AND received<? LIMIT ?", (cutoff, batch))]
+            if not keys:
+                break
+            marks = ','.join('?' * len(keys))
+            with self.lock, self.db:
+                bodies = self.db.execute(f'SELECT key,body FROM inbox WHERE key IN ({marks})', keys).fetchall()
+                for table in self.CONTENT_TABLES:
+                    self.db.execute(f'DELETE FROM {table} WHERE key IN ({marks})', keys)
+                for row in bodies:
+                    data = json.loads(row['body'])
+                    data.update(deleted=True, message='', description='', payload={}, location='')
+                    self.db.execute("UPDATE inbox SET body=?,status='deleted',error=NULL WHERE key=?", (dumps(data), row['key']))
+            total += len(keys)
         with self.lock, self.db:
-            rows = self.db.execute('SELECT key,body FROM inbox WHERE json_extract(body,\'$.occurred_at\')<?', (cutoff,)).fetchall()
-            for row in rows:
-                data = json.loads(row['body'])
-                data.update(deleted=True, message='', description='', payload={}, location='')
-                for table in ('records', 'record_fts', 'vectors', 'attributes', 'record_links', 'media'):
-                    self.db.execute(f'DELETE FROM {table} WHERE key=?', (row['key'],))
-                self.db.execute("UPDATE inbox SET body=?,status='deleted',error=NULL WHERE key=?", (dumps(data), row['key']))
-            self.audit(actor, 'retention.purge', {'before': cutoff, 'count': len(rows)})
-            return len(rows)
+            self.audit(actor, 'retention.purge', {'before': cutoff, 'count': total})
+        return total
+
+    def wipe(self, actor):
+        """Delete every event, alarm, picture and derived index. Settings (Milestone and Active Guard connections,
+        profiles, learned rules), the audit log and the Active Guard import cursors are kept, so nothing old is
+        imported again; only data arriving from now on is stored."""
+        tables = ['inbox', *self.CONTENT_TABLES, 'catalog', 'names', 'reconciliation'] + (['embeddings'] if self.pgvector else [])
+        with self.lock, self.db:
+            counts = {'records': self.db.execute('SELECT count(*) FROM records').fetchone()[0],
+                      'pictures': self.db.execute('SELECT count(*) FROM media').fetchone()[0]}
+            if self.dialect == 'postgresql':
+                self.db.execute('TRUNCATE ' + ', '.join(tables))
+            else:
+                for table in tables:
+                    self.db.execute(f'DELETE FROM {table}')
+            for name in [r[0] for r in self.db.execute('SELECT name FROM checkpoints WHERE name LIKE ? OR name LIKE ?',
+                                                                         ('activeguard:%:imported', 'activeguard:%:face_photos'))]:
+                self.db.execute('UPDATE checkpoints SET value=? WHERE name=?', ('0', name))
+            self._names = {}
+            self.audit(actor, 'data.wipe', counts)
+        if self.dialect == 'sqlite':
+            self.db.execute('VACUUM')      # give the file space back; PostgreSQL TRUNCATE already did
+        return counts

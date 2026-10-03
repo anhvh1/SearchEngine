@@ -39,6 +39,14 @@ class RuleStatus(BaseModel):
     status: str = Field(pattern='^(active|disabled)$')
 
 
+class RetentionSettings(BaseModel):
+    days: int = Field(ge=0, le=3650)
+
+
+class WipeRequest(BaseModel):
+    confirm: str = Field(default='', max_length=64)
+
+
 class MilestoneConnection(BaseModel):
     site_id: str = Field(min_length=1, max_length=128)
     url: str = Field(min_length=1, max_length=512)
@@ -514,6 +522,27 @@ def create_app(config, transport=None):
     @app.delete('/api/operations/retention')
     def purge(before: str, p=Depends(admin)):
         return {'purged': engine.purge(before, p['name'])}
+
+    @app.get('/api/settings/retention')
+    def retention_settings(p=Depends(admin)):
+        from .operations import retention_days
+        days, source = retention_days(engine, config)
+        return {'days': days, 'source': source, 'last_run': engine.checkpoint('retention:last_run'), **engine.data_span()}
+
+    @app.put('/api/settings/retention')
+    def save_retention(data: RetentionSettings, p=Depends(admin)):
+        engine.checkpoint('retention:days', str(data.days))
+        engine.checkpoint('retention:last_run', '0')     # apply on the scheduler's next pass (~10 s), not up to an hour later
+        with engine.lock, engine.db:
+            engine.audit(p['name'], 'retention.settings', {'days': data.days})
+        return retention_settings(p)
+
+    @app.post('/api/operations/wipe')
+    def wipe(data: WipeRequest, p=Depends(admin)):
+        import unicodedata
+        if unicodedata.normalize('NFC', data.confirm).strip().upper() != 'XÓA':
+            raise HTTPException(400, 'Gõ XÓA để xác nhận xóa toàn bộ dữ liệu')
+        return {'deleted': engine.wipe(p['name'])}
 
     bundled = Path(getattr(sys, '_MEIPASS', '')) / 'web' if getattr(sys, 'frozen', False) else None
     web = Path(config.get('web_root', bundled or Path(__file__).resolve().parents[2] / 'web'))

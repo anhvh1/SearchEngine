@@ -99,7 +99,11 @@ Mở workspace AI Search; đăng nhập reader backend. Chọn bản ghi có cam
 
 ## Sao lưu và retention
 
-Backup database backend bằng công cụ PostgreSQL, lưu file cấu hình riêng an toàn, giữ spool chưa ACK. API admin DELETE `/api/operations/retention?before=<ISO UTC>` xóa content/index/vector và giữ tombstone. Retention tự động chỉ chạy khi cấu hình `"retention":{"enabled":true,"days":30}`; chạy mỗi giờ, ngày tối thiểu là 1. Mặc định không tự xóa. Không xóa video hoặc dữ liệu SQL của Milestone.
+Backup database backend bằng công cụ PostgreSQL, lưu file cấu hình riêng an toàn, giữ spool chưa ACK.
+
+- **Số ngày lưu:** trang quản trị → *Lưu trữ dữ liệu*, đặt số ngày (0 = giữ mãi, tối đa 3650). Áp dụng trong khoảng 10 giây sau khi lưu, sau đó mỗi giờ tự xóa sự kiện, alarm và ảnh cũ hơn số ngày này. Xóa theo từng đợt 2.000 bản ghi nên việc nhận dữ liệu không bị dừng. Giá trị trên trang quản trị được ưu tiên hơn `"retention":{"enabled":true,"days":30}` trong file cấu hình; mặc định không tự xóa.
+- **Xóa toàn bộ dữ liệu:** cùng mục, gõ `XÓA` để xác nhận. Xóa mọi sự kiện, alarm, ảnh, chỉ mục và danh sách tên đã thấy; giữ kết nối Milestone/Active Guard, quy tắc đã học, nhật ký quản trị và vị trí đồng bộ Active Guard (không nhập lại dữ liệu cũ). Không hoàn tác được — sao lưu trước nếu cần.
+- Bản ghi đã xóa để lại một dấu nhỏ không có nội dung để thông báo cũ gửi lại không làm nó xuất hiện lại. API: `DELETE /api/operations/retention?before=<ISO UTC>`, `PUT /api/settings/retention`, `POST /api/operations/wipe`. Không xóa video hoặc dữ liệu của Milestone, Active Guard.
 
 ## Đăng nhập và cấu hình tự động (bản 2026-09-28)
 

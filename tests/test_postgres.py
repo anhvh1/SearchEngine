@@ -172,3 +172,21 @@ def test_reads_never_wait_for_a_writer(pg_dsn):
     finally:
         release.set()
         e.close()
+
+
+def test_postgres_wipe_truncates_data_and_keeps_settings(pg_dsn):
+    from search_engine.store import Engine
+    e = Engine(pg_dsn)
+    try:
+        for i in range(3):
+            e.ingest(event(f'w{i}'))
+        while e.process_pending():
+            pass
+        e.checkpoint('milestone:main', '{"url": "https://ms"}')
+        assert e.wipe('admin') == {'records': 3, 'pictures': 0}
+        assert e.status()['records'] == 0 and e.search('', [['*', '*']])['total'] == 0
+        assert e.checkpoint('milestone:main') == '{"url": "https://ms"}'
+        e.ingest(event('after')); e.process_pending()
+        assert e.search('', [['*', '*']])['total'] == 1
+    finally:
+        e.close()
