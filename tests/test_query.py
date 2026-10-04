@@ -93,3 +93,31 @@ def test_person_and_vehicle_attributes():
     assert {('vehicle_type', 'truck'), ('vehicle_color', 'white'), ('vehicle_type', 'two-wheels')} <= {tuple(f) for f in r['filters']['facts']}
     assert {('age', '61+'), ('gender', 'female'), ('upper_garment', 'long-sleeves')} <= {tuple(f) for f in ask('phụ nữ cao tuổi áo dài tay')['filters']['facts']}
     assert ('hair_color', 'black') in {tuple(f) for f in ask('tóc đen')['filters']['facts']}
+
+
+def test_clock_times_the_way_operators_say_them():
+    """'khoảng 5 giờ đến 5 giờ 15 chiều hôm qua' was read as the whole of yesterday (regression)."""
+    now = datetime(2026, 10, 4, 10, 0, tzinfo=VN)
+    day = lambda d, h, m=0: datetime(2026, 10, d, h, m, tzinfo=VN)
+    cases = {
+        'nam áo trắng xuất hiện khoảng 5 giờ đến 5 giờ 15 chiều hôm qua': (day(3, 17), day(3, 17, 15)),
+        'nam áo trắng 17h-17h15 hôm qua': (day(3, 17), day(3, 17, 15)),
+        'từ 17h đến 17h15 hôm qua': (day(3, 17), day(3, 17, 15)),
+        'lúc 5 giờ chiều hôm qua': (day(3, 16, 45), day(3, 17, 15)),          # a single time: ±15 minutes
+        'khoảng 17:30 hôm qua': (day(3, 17, 15), day(3, 17, 45)),
+        'người lạ chiều hôm qua': (day(3, 12), day(3, 18)),
+        'xâm nhập tối hôm qua': (day(3, 18), day(4, 0)),
+        'từ 8h tới 10h sáng nay': (day(4, 8), day(4, 10)),                    # "tới" (to), not "tối" (evening)
+        'sau 8h trước 10h hôm qua': (day(3, 8), day(3, 10)),                  # not "8 hours ago"
+        'từ 11 giờ đêm đến 2 giờ sáng hôm qua': (day(3, 23), day(4, 2)),
+        'chuyển động 5 giờ chiều nay': (day(4, 16, 45), day(4, 17, 15)),
+        'xâm nhập lúc 2 giờ tối qua': (day(4, 1, 45), day(4, 2, 15)),         # inside "tối qua", 2 giờ is after midnight
+        'có chuyển động sau 22h hôm qua không': (day(3, 22), day(4, 0)),
+        'mất kết nối 8 giờ trước': (day(4, 2), day(4, 10)),
+        'camera mất kết nối 24 giờ qua': (day(3, 10), day(4, 10)),
+    }
+    for question, expected in cases.items():
+        m = interpret(question, CATALOG, now)
+        assert (m['filters']['start'], m['filters']['end']) == expected, question
+        assert not any(w in m['keywords'].split() for w in ('khoang', 'chieu', 'xuat', '17h15', '10h')), (question, m['keywords'])
+    assert any(c['label'] == 'Hôm qua, 17:00–17:15' for c in interpret('17h-17h15 hôm qua', CATALOG, now)['chips'])

@@ -67,7 +67,8 @@ FACTS = [
 
 STOP = set('''nguoi co khong cac nhung nao o tai trong luc vao cua la bi da duoc cho toi xem tim kiem hay voi va hoac su kien event
     events camera cam thiet nguon gi bao nhieu lan the khi ai nhu the nao dau khu vuc tu den gio h ngay tat ca moi
-    show find me the at in on of and or any all hien thi liet ke danh sach ra nhe a oi di duoc khong vong'''.split())
+    show find me the at in on of and or any all hien thi liet ke danh sach ra nhe a oi di duoc khong vong
+    xuat khoang buoi sang trua chieu dem khuya'''.split())
 
 DAY = timedelta(days=1)
 
@@ -92,7 +93,8 @@ def _times(n, now):
         (r'\bhom nay\b', today, now, 'Hôm nay'),
         (r'\bgan day\b|\bmoi day\b|\bvua roi\b', now - DAY, now, '24 giờ qua'),
     ]
-    m = re.search(r'\b(\d{1,3}) ?(phut|gio|tieng|h|ngay|tuan|thang)( qua| truoc| gan day| vua qua)\b', n)
+    # "8 giờ trước" is 8 hours ago, but in "sau 8h trước 10h" the "trước" belongs to the next clock time.
+    m = re.search(r'(?<!sau )(?<!tu )(?<!luc )(?<!khoang )\b(\d{1,3}) ?(phut|gio|tieng|h|ngay|tuan|thang)( qua| truoc(?! \d)| gan day| vua qua)\b', n)
     if m:
         amount, unit = int(m.group(1)), m.group(2)
         delta = {'phut': timedelta(minutes=1), 'gio': timedelta(hours=1), 'tieng': timedelta(hours=1), 'h': timedelta(hours=1),
@@ -113,28 +115,76 @@ def _times(n, now):
     return None, None, None, []
 
 
-def _hours(n, start, end, now):
-    """'sau 22h', 'truoc 8 gio', 'tu 8h den 10h' narrow the day found (or today)."""
+APPROX = timedelta(minutes=15)      # "lúc 5 giờ chiều": a single clock time means this much either side
+# A clock time needs h/giờ or ':mm', so plain numbers (camera 5, 10 phút) are never read as hours.
+_CLOCK = r'(\d{1,2})(?: ?(?:h|gio)(?: ?(\d{1,2})(?: ?phut)?)?|:(\d{2}))'
+# Part of the day after a clock time; "toi" followed by another time is "tới" (to), not "tối" (evening).
+_PART = r'(?: (?:buoi )?(sang|trua|chieu|toi|dem|khuya)(?! ?\d))?'
+_RANGE = re.compile(r'\b(?:(?:tu|khoang|tam|vao|luc) )?' + _CLOCK + _PART + r'(?: ?(?:den|toi|cho den|-|~) ?| )(?:khoang )?' + _CLOCK + _PART + r'\b')
+_SINGLE = re.compile(r'\b(?:(luc|khoang|tam|vao luc|vao|chung|gan|sau|tu|truoc) )?' + _CLOCK + _PART + r'\b')
+_BEFORE = re.compile(r'\btruoc ' + _CLOCK + _PART + r'\b')
+_ONLY_PART = re.compile(r'\b(?:buoi )?(sang|trua|chieu|toi|dem|khuya)(?= hom| ngay| qua|$)')
+PARTS = {'sang': (0, 12, 'Buổi sáng'), 'trua': (11, 14, 'Buổi trưa'), 'chieu': (12, 18, 'Buổi chiều'),
+         'toi': (18, 24, 'Buổi tối'), 'dem': (18, 30, 'Ban đêm'), 'khuya': (22, 30, 'Đêm khuya')}
+
+
+def _clock(hour, minute, part):
+    """24-hour (hour, minute) for '5 giờ 15 chiều' style times."""
+    hour, minute = int(hour), int(minute or 0)
+    if part in ('chieu', 'toi') and hour < 12 or part == 'trua' and hour <= 5 or part in ('dem', 'khuya') and 7 <= hour < 12:
+        hour += 12
+    elif part in ('dem', 'khuya') and hour == 12:
+        hour = 0
+    return hour % 24, min(minute, 59)
+
+
+def _hours(n, start, end, now, used=()):
+    """Narrow the day found (or today) to clock times: 'từ 17h đến 17h15', 'khoảng 5 giờ đến 5 giờ 15 chiều',
+    '17h-17h15', 'lúc 5 giờ chiều' (±APPROX), 'sau 22h', 'trước 8 giờ', or just a part of the day ('chiều hôm qua')."""
     base = start if start is not None and end - start <= DAY + timedelta(hours=12) else _day(now)
-    spans, label = [], None
-    m = re.search(r'\btu (\d{1,2}) ?(?:h|gio)(?: ?(\d{2}))? (?:den|toi) (\d{1,2}) ?(?:h|gio)?(?: ?(\d{2}))?\b', n)
+    # Words already read as the day ("sáng nay", "24 giờ qua") are blanked so they are not read again as clock times.
+    original, chars = n, list(n)
+    for a, b in used:
+        chars[a:b] = ' ' * (b - a)
+    n = ''.join(chars)
+    # Inside a part of the day ("chiều nay", "tối qua") a bare "5 giờ" means the one that falls in it: 17:00, not 05:00.
+    window = (start, end) if start is not None and end - start < DAY else None
+
+    def at(hour, minute, part):
+        h, mi = _clock(hour, minute, part)
+        moment = base.replace(hour=h, minute=mi)
+        if window and part is None:
+            moment = next((t for t in (moment, moment + timedelta(hours=12), moment + DAY) if window[0] <= t < window[1]), moment)
+        return moment
+
+    m = _RANGE.search(n)
     if m:
-        start = base.replace(hour=int(m.group(1)) % 24, minute=int(m.group(2) or 0))
-        end = base.replace(hour=int(m.group(3)) % 24, minute=int(m.group(4) or 0))
-        if end <= start:
-            end += DAY
-        return start, end, f'{m.group(1)}h–{m.group(3)}h', [m.span()]
-    after = re.search(r'\b(?:sau|tu) (\d{1,2}) ?(?:h|gio)(?: ?(\d{2}))?\b', n)
-    before = re.search(r'\btruoc (\d{1,2}) ?(?:h|gio)(?: ?(\d{2}))?\b', n)
-    if after:
-        start, spans = base.replace(hour=int(after.group(1)) % 24, minute=int(after.group(2) or 0)), spans + [after.span()]
-        end = end if end is not None and end > start else base + DAY
-        label = f'sau {after.group(1)}h'
-    if before:
-        end, spans = base.replace(hour=int(before.group(1)) % 24, minute=int(before.group(2) or 0)), spans + [before.span()]
-        start = start if start is not None and start < end else base
-        label = (label + ', ' if label else '') + f'trước {before.group(1)}h'
-    return start, end, label, spans
+        h1, m1, part1, h2, m2, part2 = m.group(1), m.group(2) or m.group(3), m.group(4), m.group(5), m.group(6) or m.group(7), m.group(8)
+        part1 = part1 or (part2 if int(h1) <= 12 else None)    # "5 giờ đến 5 giờ 15 chiều": the afternoon covers both
+        s, e = at(h1, m1, part1), at(h2, m2, part2 or part1)
+        if e <= s:
+            e += DAY
+        return s, e, f'{s:%H:%M}–{e:%H:%M}', [m.span()]
+
+    m = _SINGLE.search(n)
+    if m:
+        word, moment = m.group(1), at(m.group(2), m.group(3) or m.group(4), m.group(5))
+        if word in ('sau', 'tu'):
+            later = _BEFORE.search(n, m.end())                                  # "sau 8h trước 10h"
+            if later:
+                until = at(later.group(1), later.group(2) or later.group(3), later.group(4))
+                if until > moment:
+                    return moment, until, f'{moment:%H:%M}–{until:%H:%M}', [m.span(), later.span()]
+            return moment, end if end is not None and end > moment else base + DAY, f'sau {moment:%H:%M}', [m.span()]
+        if word == 'truoc':
+            return start if start is not None and start < moment else base, moment, f'trước {moment:%H:%M}', [m.span()]
+        return moment - APPROX, moment + APPROX, f'khoảng {moment:%H:%M}', [m.span()]
+
+    m = _ONLY_PART.search(original)     # needs the day words it qualifies ("chiều hôm qua"), so read the unblanked text
+    if m and start is not None and not any(a < m.end() and m.start() < b for a, b in used):
+        first, last, label = PARTS[m.group(1)]
+        return base + timedelta(hours=first), base + timedelta(hours=last), label, [m.span()]
+    return start, end, None, []
 
 
 def interpret(text, catalog, now=None):
@@ -144,7 +194,7 @@ def interpret(text, catalog, now=None):
     chips, used = [], []
     start, end, label, spans = _times(n, now)
     used += spans
-    h_start, h_end, h_label, h_spans = _hours(n, start, end, now)
+    h_start, h_end, h_label, h_spans = _hours(n, start, end, now, used)
     if h_spans:
         start, end, used = h_start, h_end, used + h_spans
         label = f'{label}, {h_label}' if label else h_label
