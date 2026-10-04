@@ -17,6 +17,10 @@ Tìm event/alarm bằng văn bản, hồ sơ phân tích có phiên bản và AI
 
 Hai dự án trong `docs/PsimEvent` và `docs/PsimManagement` là tài liệu tham khảo, không phải plugin đầu ra. Project này có GUID độc lập và không sửa hai dự án đó.
 
+## Tìm "lần gần nhất ở mỗi camera"
+
+Bật ô **"Mỗi camera chỉ lấy 1 kết quả gần nhất"** dưới khung tìm (web và tab AI Search của Smart Client), hoặc thêm "mỗi camera"/"từng camera" vào câu hỏi: mỗi camera chỉ còn bản ghi phù hợp mới nhất, xếp từ gần đến xa so với lúc tìm. Ví dụ "nam áo trắng đội mũ trong 10 phút qua mỗi camera" với 5 camera trả về tối đa 5 dòng. API: `POST /api/ask` với `"latest_per_source": true` (hoặc `POST /api/search` cùng tham số). Camera được phân biệt theo nguồn dữ liệu: cùng một camera vật lý có thể hiện hai dòng nếu vừa có best shot Active Guard vừa có alarm Milestone.
+
 ## Chạy backend
 
 ```powershell

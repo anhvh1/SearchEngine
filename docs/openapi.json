@@ -5,6 +5,61 @@
     "version": "0.1.0"
   },
   "paths": {
+    "/api/session": {
+      "post": {
+        "summary": "Sign In",
+        "operationId": "sign_in_api_session_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Sign Out",
+        "operationId": "sign_out_api_session_delete",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/me": {
       "get": {
         "summary": "Me",
@@ -15,6 +70,473 @@
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/ask": {
+      "post": {
+        "summary": "Ask",
+        "description": "One text box: understand the sentence, search, and explain what was understood.",
+        "operationId": "ask_api_ask_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AskRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/settings/activeguard": {
+      "get": {
+        "summary": "Activeguard Settings",
+        "operationId": "activeguard_settings_api_settings_activeguard_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "put": {
+        "summary": "Save Activeguard",
+        "operationId": "save_activeguard_api_settings_activeguard_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActiveGuardConnection"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/settings/activeguard/{server}": {
+      "delete": {
+        "summary": "Remove Activeguard",
+        "operationId": "remove_activeguard_api_settings_activeguard__server__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "server",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Server"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/activeguard/sync": {
+      "post": {
+        "summary": "Activeguard Sync",
+        "operationId": "activeguard_sync_api_activeguard_sync_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/ask/image": {
+      "post": {
+        "summary": "Ask Image",
+        "description": "Photo search: faces are matched by Active Guard itself; a full-body photo is described by the vision model.",
+        "operationId": "ask_image_api_ask_image_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tz_offset_minutes",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 420,
+              "title": "Tz Offset Minutes"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_ask_image_api_ask_image_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/records/{key}/image": {
+      "get": {
+        "summary": "Record Image",
+        "operationId": "record_image_api_records__key__image_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rules": {
+      "get": {
+        "summary": "Rules",
+        "operationId": "rules_api_rules_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/rules/status": {
+      "post": {
+        "summary": "Rule Status",
+        "operationId": "rule_status_api_rules_status_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuleStatus"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/rules/learn": {
+      "post": {
+        "summary": "Learn",
+        "operationId": "learn_api_rules_learn_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/rules/suggest": {
+      "post": {
+        "summary": "Suggest",
+        "operationId": "suggest_api_rules_suggest_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/summary": {
+      "get": {
+        "summary": "Summary",
+        "operationId": "summary_api_summary_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/sources": {
+      "get": {
+        "summary": "Sources",
+        "operationId": "sources_api_sources_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/settings/milestone": {
+      "get": {
+        "summary": "Milestone Settings",
+        "operationId": "milestone_settings_api_settings_milestone_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "put": {
+        "summary": "Save Milestone",
+        "operationId": "save_milestone_api_settings_milestone_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MilestoneConnection"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
@@ -40,6 +562,28 @@
             }
           }
         }
+      }
+    },
+    "/api/collector/ca": {
+      "get": {
+        "summary": "Collector Ca",
+        "description": "The CA for the Event Server plugin to publish to Smart Clients, signed with this collector's own token so a\nmachine in between (plain HTTP on the LAN) cannot substitute its own CA.",
+        "operationId": "collector_ca_api_collector_ca_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/api/ingest": {
@@ -242,6 +786,48 @@
             "HTTPBearer": []
           }
         ]
+      }
+    },
+    "/api/contexts/{site_id}/latest": {
+      "get": {
+        "summary": "Latest Context",
+        "operationId": "latest_context_api_contexts__site_id__latest_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "site_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Site Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/records/{key}": {
@@ -793,10 +1379,197 @@
           }
         }
       }
+    },
+    "/api/settings/retention": {
+      "get": {
+        "summary": "Retention Settings",
+        "operationId": "retention_settings_api_settings_retention_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "put": {
+        "summary": "Save Retention",
+        "operationId": "save_retention_api_settings_retention_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetentionSettings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/operations/wipe": {
+      "post": {
+        "summary": "Wipe",
+        "operationId": "wipe_api_operations_wipe_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WipeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
     }
   },
   "components": {
     "schemas": {
+      "ActiveGuardConnection": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "maxLength": 512,
+            "minLength": 1,
+            "title": "Url"
+          },
+          "username": {
+            "type": "string",
+            "maxLength": 256,
+            "title": "Username",
+            "default": ""
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 1024,
+            "title": "Password",
+            "default": ""
+          },
+          "site_id": {
+            "type": "string",
+            "maxLength": 128,
+            "title": "Site Id",
+            "default": "main"
+          }
+        },
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "title": "ActiveGuardConnection"
+      },
+      "AskRequest": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 2000,
+            "title": "Text",
+            "default": ""
+          },
+          "tz_offset_minutes": {
+            "type": "integer",
+            "maximum": 840.0,
+            "minimum": -840.0,
+            "title": "Tz Offset Minutes",
+            "default": 420
+          },
+          "latest_per_source": {
+            "type": "boolean",
+            "title": "Latest Per Source",
+            "default": false
+          },
+          "limit": {
+            "type": "integer",
+            "maximum": 200.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "default": 50
+          },
+          "offset": {
+            "type": "integer",
+            "maximum": 100000.0,
+            "minimum": 0.0,
+            "title": "Offset",
+            "default": 0
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "AskRequest"
+      },
+      "Body_ask_image_api_ask_image_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_ask_image_api_ask_image_post"
+      },
       "Body_transcribe_api_transcribe_post": {
         "properties": {
           "file": {
@@ -962,6 +1735,22 @@
             },
             "type": "object",
             "title": "Enum"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "value",
+              "json",
+              "xml"
+            ],
+            "title": "Format",
+            "default": "value"
+          },
+          "selector": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_./-]{0,256}$",
+            "title": "Selector",
+            "default": ""
           }
         },
         "additionalProperties": false,
@@ -970,6 +1759,45 @@
           "path"
         ],
         "title": "Mapping"
+      },
+      "MilestoneConnection": {
+        "properties": {
+          "site_id": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Site Id"
+          },
+          "url": {
+            "type": "string",
+            "maxLength": 512,
+            "minLength": 1,
+            "title": "Url"
+          },
+          "username": {
+            "type": "string",
+            "maxLength": 256,
+            "title": "Username",
+            "default": ""
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 1024,
+            "title": "Password",
+            "default": ""
+          },
+          "verify_certificates": {
+            "type": "boolean",
+            "title": "Verify Certificates",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "site_id",
+          "url"
+        ],
+        "title": "MilestoneConnection"
       },
       "Profile": {
         "properties": {
@@ -1047,7 +1875,8 @@
             "enum": [
               "alarm_changed",
               "configuration_changed",
-              "scheduled"
+              "scheduled",
+              "startup"
             ],
             "title": "Reason"
           },
@@ -1071,6 +1900,58 @@
           "reason"
         ],
         "title": "ReconcileRequest"
+      },
+      "RetentionSettings": {
+        "properties": {
+          "days": {
+            "type": "integer",
+            "maximum": 3650.0,
+            "minimum": 0.0,
+            "title": "Days"
+          }
+        },
+        "type": "object",
+        "required": [
+          "days"
+        ],
+        "title": "RetentionSettings"
+      },
+      "RuleStatus": {
+        "properties": {
+          "site_id": {
+            "type": "string",
+            "maxLength": 128,
+            "title": "Site Id"
+          },
+          "event_type": {
+            "type": "string",
+            "maxLength": 256,
+            "title": "Event Type"
+          },
+          "field": {
+            "type": "string",
+            "pattern": "^(name|message|description)$",
+            "title": "Field"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "status": {
+            "type": "string",
+            "pattern": "^(active|disabled)$",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "site_id",
+          "event_type",
+          "field",
+          "version",
+          "status"
+        ],
+        "title": "RuleStatus"
       },
       "SearchRequest": {
         "properties": {
@@ -1101,6 +1982,91 @@
               }
             ],
             "title": "Source Id"
+          },
+          "event_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 256
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Type"
+          },
+          "event_types": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "maxItems": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Types"
+          },
+          "source_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "maxItems": 5000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Ids"
+          },
+          "entities": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "maxItems": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entities"
+          },
+          "facts": {
+            "anyOf": [
+              {
+                "items": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "type": "array",
+                "maxItems": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Facts"
+          },
+          "collapse": {
+            "type": "boolean",
+            "title": "Collapse",
+            "default": false
+          },
+          "latest_per_source": {
+            "type": "boolean",
+            "title": "Latest Per Source",
+            "default": false
           },
           "kind": {
             "anyOf": [
@@ -1182,6 +2148,30 @@
         "type": "object",
         "title": "SearchRequest"
       },
+      "SignIn": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "maxLength": 256,
+            "title": "Username",
+            "default": ""
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 1024,
+            "title": "Password",
+            "default": ""
+          },
+          "token": {
+            "type": "string",
+            "maxLength": 16384,
+            "title": "Token",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "SignIn"
+      },
       "ValidationError": {
         "properties": {
           "loc": {
@@ -1214,6 +2204,18 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "WipeRequest": {
+        "properties": {
+          "confirm": {
+            "type": "string",
+            "maxLength": 64,
+            "title": "Confirm",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "WipeRequest"
       }
     },
     "securitySchemes": {

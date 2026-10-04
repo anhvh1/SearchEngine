@@ -87,12 +87,19 @@ $('ask-input').addEventListener('input', () => { const t = $('ask-input'); t.sty
 $('ask-form').onsubmit = e => { e.preventDefault(); ask($('ask-input').value.trim()); };
 $('more').onclick = () => ask(lastText, true);
 
+// "Where was it last seen": one result per camera, the newest. Remembered on this browser only.
+try { $('latest-per-camera').checked = localStorage.getItem('latest-per-camera') === '1'; } catch { /* storage blocked */ }
+$('latest-per-camera').onchange = () => {
+  try { localStorage.setItem('latest-per-camera', $('latest-per-camera').checked ? '1' : '0'); } catch { /* storage blocked */ }
+  if (lastText && !$('answer').hidden) ask(lastText);
+};
 async function ask(text, more = false) {
   offset = more ? offset + PAGE : 0; lastText = text;
   $('answer').hidden = false; $('examples').hidden = true; document.body.classList.add('has-results');
   if (!more) { $('summary').textContent = 'Đang tìm…'; $('chips').replaceChildren(); $('results').replaceChildren(); }
   try {
-    const data = await api('/ask', {text, tz_offset_minutes: -new Date().getTimezoneOffset(), limit: PAGE, offset});
+    const data = await api('/ask', {text, tz_offset_minutes: -new Date().getTimezoneOffset(), limit: PAGE, offset,
+      latest_per_source: $('latest-per-camera').checked});
     render(data, more);
   } catch (err) { $('summary').textContent = err.message; }
 }
@@ -100,13 +107,14 @@ let similarity = {};
 function render(data, more) {
   similarity = data.similarity || {};
   if (!more) {
-    const parts = [`Tìm thấy ${data.total.toLocaleString('vi-VN')} lần xuất hiện`];
+    const perCamera = data.latest_per_source;
+    const parts = [perCamera ? `Gần nhất tại ${data.total.toLocaleString('vi-VN')} camera/thiết bị` : `Tìm thấy ${data.total.toLocaleString('vi-VN')} lần xuất hiện`];
     const people = data.facets?.people?.slice(0, 3).map(f => `${f.name} (${f.count})`);
     if (people?.length) parts.push(people.join(', '));
     const top = people?.length ? null : data.facets?.event_types?.slice(0, 3).map(f => `${eventLabel(f.name)} (${f.count})`);
     const cams = data.facets?.sources?.length;
     if (top?.length) parts.push(top.join(', '));
-    if (cams) parts.push(`${cams >= 8 ? '8+' : cams} camera/thiết bị`);
+    if (cams && !perCamera) parts.push(`${cams >= 8 ? '8+' : cams} camera/thiết bị`);
     $('summary').textContent = data.total ? parts.join(' · ') : (data.note || 'Không có sự kiện phù hợp. Thử khoảng thời gian rộng hơn hoặc bớt điều kiện.');
     $('chips').replaceChildren(...data.understood.map(c => node('span', c.label, 'chip chip-' + c.type)));
     if (data.described) $('chips').prepend(node('span', `Ảnh: ${data.described}`, 'chip chip-muted'));

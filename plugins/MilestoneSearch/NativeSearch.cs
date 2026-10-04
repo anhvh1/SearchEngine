@@ -40,8 +40,9 @@ namespace MilestoneSearch
             return response;
         }
         public async Task<JObject> Capabilities() => (JObject)await Send(HttpMethod.Get, "api/capabilities");
-        public async Task<JObject> Ask(string text, int offset, int limit, int tzOffsetMinutes) =>
-            (JObject)await Send(HttpMethod.Post, "api/ask", new JObject { ["text"] = text, ["tz_offset_minutes"] = tzOffsetMinutes, ["limit"] = limit, ["offset"] = offset });
+        public async Task<JObject> Ask(string text, int offset, int limit, int tzOffsetMinutes, bool latestPerCamera = false) =>
+            (JObject)await Send(HttpMethod.Post, "api/ask", new JObject { ["text"] = text, ["tz_offset_minutes"] = tzOffsetMinutes, ["limit"] = limit,
+                ["offset"] = offset, ["latest_per_source"] = latestPerCamera });
         public async Task<byte[]> Image(string key)
         {
             using (var response = await http.GetAsync("api/records/" + Uri.EscapeDataString(key) + "/image"))
@@ -258,6 +259,9 @@ namespace MilestoneSearch
         private JObject capabilities = new JObject();
         private JObject similarity = new JObject();
         private string lastQuery = "";
+        // "Where was it last seen": one result per camera, the newest.
+        private readonly CheckBox perCamera = new CheckBox { Content = "Mỗi camera chỉ lấy 1 kết quả gần nhất", Foreground = Theme.B(Theme.Ink), FontSize = 13,
+            FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 12, 0, 0), Cursor = Cursors.Hand };
         private int offset;
         private const int Page = 50;
         private MicRecorder recorder;
@@ -309,6 +313,9 @@ namespace MilestoneSearch
             askRow.Children.Add(sendButton); askRow.Children.Add(micButton); askRow.Children.Add(photoButton); askRow.Children.Add(inputGrid);
             askBorder.Child = askRow;
             content.Children.Add(askBorder);
+            content.Children.Add(perCamera);
+            RoutedEventHandler rerun = (s, e) => { if (!string.IsNullOrEmpty(lastQuery) && results.Children.Count > 0) _ = RunSearch(lastQuery); };
+            perCamera.Checked += rerun; perCamera.Unchecked += rerun;
             sendButton.Click += (s, e) => _ = RunSearch(input.Text.Trim());
             micButton.Click += (s, e) => ToggleMic();
             photoButton.Click += (s, e) => PickPhoto();
@@ -404,7 +411,7 @@ namespace MilestoneSearch
             if (!more) { summary.Text = "Đang tìm…"; chips.Children.Clear(); results.Children.Clear(); }
             try
             {
-                var data = await session.Ask(text, offset, Page, (int)TimeZoneInfo.Local.GetUtcOffset(DateTime.Now).TotalMinutes);
+                var data = await session.Ask(text, offset, Page, (int)TimeZoneInfo.Local.GetUtcOffset(DateTime.Now).TotalMinutes, perCamera.IsChecked == true);
                 Render(data, more);
             }
             catch (Exception ex) { summary.Text = ex.Message; PluginLog.Error(ex); }
@@ -416,7 +423,8 @@ namespace MilestoneSearch
             if (!more)
             {
                 int total = (int?)data["total"] ?? 0;
-                var parts = new List<string> { $"Tìm thấy {total:N0} lần xuất hiện" };
+                bool latestPerCamera = (bool?)data["latest_per_source"] == true;
+                var parts = new List<string> { latestPerCamera ? $"Gần nhất tại {total:N0} camera/thiết bị" : $"Tìm thấy {total:N0} lần xuất hiện" };
                 var people = (data["facets"]?["people"] as JArray)?.Take(3).Select(f => $"{(string)f["name"]} ({(int)f["count"]})").ToList();
                 if (people != null && people.Count > 0) parts.Add(string.Join(", ", people));
                 else
@@ -425,7 +433,7 @@ namespace MilestoneSearch
                     if (top != null && top.Count > 0) parts.Add(string.Join(", ", top));
                 }
                 int cams = (data["facets"]?["sources"] as JArray)?.Count ?? 0;
-                if (cams > 0) parts.Add($"{(cams >= 8 ? "8+" : cams.ToString())} camera/thiết bị");
+                if (cams > 0 && !latestPerCamera) parts.Add($"{(cams >= 8 ? "8+" : cams.ToString())} camera/thiết bị");
                 summary.Text = total > 0 ? string.Join(" · ", parts) : ((string)data["note"] ?? "Không có sự kiện phù hợp. Thử khoảng thời gian rộng hơn hoặc bớt điều kiện.");
                 chips.Children.Clear();
                 foreach (var c in (data["understood"] as JArray) ?? new JArray())

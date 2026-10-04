@@ -225,6 +225,9 @@ def create_app(config, transport=None):
         meaning = interpret(data.text, engine.sources(grants), now)
         f = meaning['filters']
         params = {k: v for k, v in f.items() if v is not None}
+        if data.latest_per_source and not params.get('latest_per_source'):
+            params['latest_per_source'] = True
+            meaning['chips'].append({'type': 'mode', 'label': 'Mỗi camera 1 kết quả gần nhất'})
         common = dict(facets=True, collapse=True, limit=data.limit, offset=data.offset, **params)
         result = engine.search(meaning['keywords'], grants, **common)
         dropped = None
@@ -233,7 +236,7 @@ def create_app(config, transport=None):
             result = engine.search('', grants, **common)
         elif meaning['keywords']:
             meaning['chips'].append({'type': 'text', 'label': '“' + meaning['keywords'] + '”'})
-        return {**result, 'understood': meaning['chips'], 'ignored_words': dropped,
+        return {**result, 'understood': meaning['chips'], 'ignored_words': dropped, 'latest_per_source': bool(params.get('latest_per_source')),
                 'range': {k: f[k].isoformat() if f[k] else None for k in ('start', 'end')}}
 
     def activeguard_configured():

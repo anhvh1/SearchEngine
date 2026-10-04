@@ -74,6 +74,8 @@ class SearchRequest(BaseModel):
     entities: list[str] | None = Field(default=None, max_length=100)
     facts: list[list[str]] | None = Field(default=None, max_length=20)
     collapse: bool = False
+    # Only the most recent match of each camera (source), newest first: "where was this person last seen, per camera".
+    latest_per_source: bool = False
     kind: Literal['event', 'alarm'] | None = None
     family: str | None = None
     state: str | None = None
@@ -92,6 +94,7 @@ class AskRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
     text: str = Field(default='', max_length=2000)
     tz_offset_minutes: int = Field(default=420, ge=-840, le=840)
+    latest_per_source: bool = False
     limit: int = Field(default=50, ge=1, le=200)
     offset: int = Field(default=0, ge=0, le=100000)
 

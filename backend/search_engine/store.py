@@ -469,7 +469,11 @@ class Engine:
         where = ' AND '.join(clauses)
         # The matching set is computed once into a temporary table; count, page and facets all read it instead of each
         # re-running the whole filter (and, collapsed, the occurrence grouping) over every match.
-        if request.collapse:
+        if request.latest_per_source:
+            # Only the newest match of each camera: "where was this person last seen", at most one row per camera.
+            fill = (f'SELECT key FROM (SELECT key, row_number() OVER (PARTITION BY site_id, source_id ORDER BY occurred_at DESC, key DESC) '
+                    f'AS newest FROM records WHERE {where}) ranked WHERE newest=1')
+        elif request.collapse:
             # One row per occurrence: an event, its alarm and repeats at the same camera count once.
             fill = f'SELECT DISTINCT l.head AS key FROM record_links l WHERE l.key IN (SELECT key FROM records WHERE {where})'
         else:
@@ -487,11 +491,14 @@ class Engine:
                     'ORDER BY r2.occurred_at DESC, r2.key LIMIT ? OFFSET ?) page ON page.key=r.key ORDER BY r.occurred_at DESC, r.key',
                     (request.limit, request.offset)).fetchall()
                 items = [json.loads(r['body']) for r in rows]
-                if request.collapse:
+                if request.collapse or request.latest_per_source:
                     from .enrich import episode_stats
-                    stats = episode_stats(self, [i['key'] for i in items], db)
+                    keys = [i['key'] for i in items]
+                    # Per-camera rows are the newest record of their occurrence, not its head: report the occurrence.
+                    heads = dict(db.execute(f"SELECT key, head FROM record_links WHERE key IN ({','.join('?' * len(keys))})", keys).fetchall()) if keys else {}
+                    stats = episode_stats(self, sorted(set(heads.values()) | set(keys)), db)
                     for i in items:
-                        i['episode'] = stats.get(i['key'])
+                        i['episode'] = stats.get(heads.get(i['key'], i['key']))
                 result = {'total': total, 'items': items, 'limit': request.limit, 'offset': request.offset}
                 if facets and total:
                     people = db.execute(

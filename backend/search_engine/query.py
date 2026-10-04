@@ -41,7 +41,7 @@ COLOR_NOUNS = [(r'ao(?: khoac| thun| so mi)?', 'upper_color', 'Áo'), (r'quan(?:
                (r'toc', 'hair_color', 'Tóc'), (r'(?:tui|ba lo|cap)', 'bag_color', 'Túi'), (r'giay', 'shoes_color', 'Giày'),
                (r'(?:xe|o to|xe hoi)', 'vehicle_color', 'Xe')]
 ATTRIBUTES = [
-    (('nam', 'dan ong', 'con trai'), 'Nam', 'gender', 'male'), (('nu', 'phu nu', 'con gai', 'ba'), 'Nữ', 'gender', 'female'),
+    (('nam', 'nam gioi', 'dan ong', 'con trai'), 'Nam', 'gender', 'male'), (('nu', 'nu gioi', 'phu nu', 'con gai', 'ba'), 'Nữ', 'gender', 'female'),
     (('tre em', 'be trai', 'be gai', 'em be'), 'Trẻ em', 'age', '0-10'), (('thieu nien', 'hoc sinh'), 'Thiếu niên', 'age', '11-20'),
     (('nguoi lon', 'trung nien'), 'Người lớn', 'age', '21-60'), (('nguoi gia', 'cao tuoi', 'nguoi cao tuoi', 'ong gia', 'ba gia'), 'Người cao tuổi', 'age', '61+'),
     (('toc dai',), 'Tóc dài', 'hair_style', 'long-hair'), (('toc ngan',), 'Tóc ngắn', 'hair_style', 'short-hair'),
@@ -67,7 +67,7 @@ FACTS = [
 
 STOP = set('''nguoi co khong cac nhung nao o tai trong luc vao cua la bi da duoc cho toi xem tim kiem hay voi va hoac su kien event
     events camera cam thiet nguon gi bao nhieu lan the khi ai nhu the nao dau khu vuc tu den gio h ngay tat ca moi
-    show find me the at in on of and or any all hien thi liet ke danh sach ra nhe a oi di duoc khong'''.split())
+    show find me the at in on of and or any all hien thi liet ke danh sach ra nhe a oi di duoc khong vong'''.split())
 
 DAY = timedelta(days=1)
 
@@ -203,6 +203,11 @@ def interpret(text, catalog, now=None):
                 chips.append({'type': 'fact', 'label': label})
                 break
 
+    latest = re.search(r'\b(?:cho )?(?:moi|tung) (?:camera|cam)\b', n)
+    if latest and not any(a <= latest.start() < b for a, b in used):
+        used.append(latest.span())
+        chips.append({'type': 'mode', 'label': 'Mỗi camera 1 kết quả gần nhất'})
+
     sources = [(s['source_id'], fold(s['name'])) for s in catalog.get('sources', [])]
     source_ids = set()
     for m in re.finditer(r'(?<![\d.])((?:\d{1,3}\.){1,3}\d{1,3}|\.\d{1,3})(?![\d.])', n):
@@ -240,5 +245,6 @@ def interpret(text, catalog, now=None):
             chips.append({'type': 'source', 'label': ' '.join(name_words)})
             words = [w for w in words if w not in name_words]
     filters = {'start': start, 'end': end, 'kind': kind, 'entities': entity_ids or None, 'facts': facts or None,
-               'event_types': sorted(event_ids) or None, 'source_ids': sorted(source_ids) or None}
+               'event_types': sorted(event_ids) or None, 'source_ids': sorted(source_ids) or None,
+               'latest_per_source': True if latest and latest.span() in used else None}
     return {'filters': filters, 'keywords': ' '.join(words), 'chips': chips}
