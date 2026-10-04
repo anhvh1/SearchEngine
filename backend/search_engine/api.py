@@ -139,7 +139,24 @@ def create_app(config, transport=None):
                 pass
         engine.close()
 
-    app = FastAPI(title='Milestone Search', version='0.1.0', lifespan=lifespan)
+    # API docs are served from bundled copies (web/docs-assets): the default pages load Swagger UI/ReDoc from a CDN and
+    # stay blank on a LAN without Internet access.
+    app = FastAPI(title='Search Engine API', version='0.1.0', lifespan=lifespan, docs_url=None, redoc_url=None)
+
+    @app.get('/docs', include_in_schema=False)
+    def swagger_docs():
+        from fastapi.responses import HTMLResponse
+        return HTMLResponse('<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Search Engine API</title>'
+                            '<meta name="viewport" content="width=device-width, initial-scale=1">'
+                            '<link rel="icon" href="/docs-assets/favicon-32x32.png"><link rel="stylesheet" href="/docs-assets/swagger-ui.css">'
+                            '</head><body><div id="swagger-ui"></div><script src="/docs-assets/swagger-ui-bundle.js"></script>'
+                            '<script src="/docs-assets/swagger-init.js"></script></body></html>')
+
+    @app.get('/redoc', include_in_schema=False)
+    def redoc_docs():
+        from fastapi.openapi.docs import get_redoc_html
+        return get_redoc_html(openapi_url='/openapi.json', title='Search Engine API', redoc_js_url='/docs-assets/redoc.standalone.js',
+                              redoc_favicon_url='/docs-assets/favicon-32x32.png', with_google_fonts=False)
     app.state.engine = engine
     app.state.milestone = milestone
     bearer = HTTPBearer(auto_error=False)
@@ -153,7 +170,13 @@ def create_app(config, transport=None):
         response.headers['Cache-Control'] = 'no-store'
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['Referrer-Policy'] = 'no-referrer'
-        response.headers['Content-Security-Policy'] = "default-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self' blob:; media-src 'self' blob:; frame-ancestors 'none'"
+        if request.url.path in ('/docs', '/redoc'):
+            # The API pages' renderers style elements inline, use data: icons and (ReDoc) a blob: search worker; scripts
+            # still come only from this server.
+            response.headers['Content-Security-Policy'] = ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+                "img-src 'self' data: blob:; worker-src 'self' blob:; connect-src 'self'; font-src 'self' data:; frame-ancestors 'none'")
+        else:
+            response.headers['Content-Security-Policy'] = "default-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self' blob:; media-src 'self' blob:; frame-ancestors 'none'"
         return response
 
     @app.exception_handler(ValueError)
